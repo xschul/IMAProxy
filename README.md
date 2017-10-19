@@ -1,8 +1,11 @@
 # IMAProxy
 IMAP proxy to sanitize attachments
 
+## Librairies used
+imaplib
+
 ## Useful links
-###Tutorial IMAP4 Client Library
+### Tutorial IMAP4 Client Library
 https://pymotw.com/3/imaplib/
 https://yuji.wordpress.com/2011/06/22/python-imaplib-imap-example-with-gmail/
 https://pymotw.com/2/imaplib/
