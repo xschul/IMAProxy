@@ -2,9 +2,6 @@ import imaplib
 import pprint
 
 def open_connection(hostname, username, password, verbose = False):
-    """ Return connection (UNSECURED FOR NOW)
-    """
-
     # Connect to hostname
     if verbose:
         print('Connecting to', hostname)
