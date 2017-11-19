@@ -1,11 +1,16 @@
 import imaplib
 import pprint
+import email
 
-def open_connection(hostname, username, password, verbose = False):
+def open_connection(hostname, username, password, port = 0, verbose = False):
     # Connect to hostname
     if verbose:
         print('Connecting to', hostname)
-    connection = imaplib.IMAP4_SSL(hostname)
+
+    if port == 0: 
+        connection = imaplib.IMAP4_SSL(hostname)
+    else:
+        connection = imaplib.IMAP4_SSL(hostname, port)
 
     if verbose:
         print('Logging in as', username)
@@ -30,7 +35,7 @@ def search_message_id(c, mailbox, uid, verbose = False):
         #pprint.pprint(msg_data)
         return True
     else:
-        print('MESSAGE', uid, "DOESN'T EXISTS")
+        print('MESSAGE', uid, "DOESN'T EXIST")
         return False
 
 def create_quarantine(c, verbose = False):
@@ -67,34 +72,64 @@ def move_to_quarantine(c, src_mailbox, uid, verbose = False):
 def copy(c, uid, dst_mailbox, verbose = False):
     c.copy(str(uid), dst_mailbox)
     if verbose:
-        print('MSG ', uid, ' COPIED IN ', dst_mailbox)
+        print('MSG', uid, 'COPIED IN ', dst_mailbox)
+
+def download_attachments(c, uid, src_mailbox, verbose = False):
+    c.select(src_mailbox)
+    outputdir = "../../"
+
+    resp, data = c.fetch(str(uid), "(BODY.PEEK[])")
+    email_body = str(data[0][1])
+    print(email_body)
+    mail = email.message_from_string(email_body)
+    print(mail.get_content_maintype())
+    if not mail.is_multipart():
+        if verbose:
+            print("Not multipart")
+        return
+    for part in mail.walk():
+        if verbose:
+            print("Multipart")
+
+        if part.get_content_maintype() != 'multipart' and part.get('Content-Disposition') is not None:
+            open(outputdir + part.get_filename(), 'wb').write(part.get_payload(decode=True))
+
+
+def tag_email(c, uid, src_mailbox, verbose = False):
+    c.select(src_mailbox)
+
+    typ, msg_data = c.fetch(str(uid), '(BODY.PEEK[HEADER])')
+    #pprint.pprint(msg_data)
+
 
 def sanitize():
     pass
 
 
 if __name__ == '__main__':
-    hostname = 'imap-mail.outlook.com'
+    #hostname = 'imap-mail.outlook.com'
+    hostname = '127.0.0.1'
     username = 'mt2017pr@hotmail.com'
     password = 'ImapProxy'
+    port = 10000
 
     # Open connection
-    with open_connection(hostname, username, password, verbose = True) as c:
+    with open_connection(hostname, username, password, port, verbose = True) as c:
         print(c)
 
-        uid = 1
+        uid = 2
         src_mailbox = 'INBOX'
         dst_mailbox = 'Quarantine'
 
         if search_message_id(c, src_mailbox, uid, verbose=True):
+            pass
             #create_quarantine(c, verbose = True)
-            move_to_quarantine(c, src_mailbox, uid, verbose=True)
+            #move_to_quarantine(c, src_mailbox, uid, verbose=True)
+            #tag_email(c, uid, src_mailbox, verbose=True)
+            #download_attachments(c, uid, src_mailbox, verbose = True)
 
         # Search message in quarantine
         #search_message_id(c, dst_mailbox, uid, verbose=True)
 
         c.close()
         c.logout()
-        
-
-    
