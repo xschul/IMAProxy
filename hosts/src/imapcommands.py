@@ -108,13 +108,13 @@ def sanitize():
 
 if __name__ == '__main__':
     #hostname = 'imap-mail.outlook.com'
-    hostname = '40.97.145.162'
+    hostname = '40.97.41.114'
     username = 'mt2017pr@hotmail.com'
     password = 'ImapProxy'
     port = 10000
 
     # Open connection
-    with open_connection(hostname, username, password, port, verbose = True) as c:
+    with open_connection(hostname, username, password, verbose = True) as c:
         print(c)
 
         uid = 2
