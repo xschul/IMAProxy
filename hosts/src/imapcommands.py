@@ -108,7 +108,7 @@ def sanitize():
 
 if __name__ == '__main__':
     #hostname = 'imap-mail.outlook.com'
-    hostname = '127.0.0.1'
+    hostname = '40.97.145.162'
     username = 'mt2017pr@hotmail.com'
     password = 'ImapProxy'
     port = 10000

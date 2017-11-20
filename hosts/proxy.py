@@ -1,12 +1,3 @@
-import requests
-from src.imapcommands import *
-
-response = requests.get('https://httpbin.org/ip')
-
-print('Your IP is {0}'.format(response.json()['origin']))
-
-
-##########
 import socket
 import sys
 
@@ -31,9 +22,13 @@ while True:
 
         # Receive the data in small chunks and retransmit it
         while True:
-            data = connection.recv(10000)
-            
-            print (" ".join([str(hex(i)).replace("0x", "") for i in data]))
+            data = connection.recv(128)
+            print ('received "%s"' % data)
+            if data:
+                pass
+            else:
+                print ('no more data from', client_address)
+                break
             	
     finally:
         # Clean up the connection
