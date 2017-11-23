@@ -121,8 +121,7 @@ if __name__ == '__main__':
 
     if search_message_id(c, src_mailbox, uid, verbose=True):
         #create_quarantine(c, verbose = True)
-        move_to_quarantine(c, src_mailbox, uid, verbose=True)
-        #tag_email(c, uid, src_mailbox, verbose=True)
+        #move_to_quarantine(c, src_mailbox, uid, verbose=True)
         #download_attachments(c, uid, src_mailbox, verbose = True)
 
         # Search message in quarantine
