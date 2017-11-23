@@ -3,7 +3,15 @@ import pprint
 import email
 import sys
 
+"""
+IMAP library which is capable of retrieve emails, move an email to another folder and download the attachments
+"""
+
 def open_connection(hostname, username, password, verbose = False):
+    ''' 
+    Open a connection to a hostname with the identifiers (username, password) 
+    '''
+
     # Connect to hostname
     if verbose:
         print('Connecting to', hostname)
@@ -23,6 +31,10 @@ def open_connection(hostname, username, password, verbose = False):
     return connection
 
 def search_message_id(c, mailbox, uid, verbose = False):
+    '''
+    From a connection "c", search an email with the id "uid" inside the mailbox "mailbox"
+    '''
+
     if verbose:
         print('Searching message_id ', uid, ' into ', mailbox)
 
@@ -31,18 +43,25 @@ def search_message_id(c, mailbox, uid, verbose = False):
 
     if msg_data != [b'The specified message set is invalid.']:
         print('MESSAGE', uid, 'EXISTS')
-        #pprint.pprint(msg_data)
         return True
     else:
         print('MESSAGE', uid, "DOESN'T EXIST")
         return False
 
 def create_quarantine(c, verbose = False):
+    '''
+    From a connection "c", create a folder named "Quarantine"
+    '''
+
     typ, create_response = c.create('Quarantine')
     if verbose:
         print('CREATED Quarantine:', create_response)
 
 def move_to_quarantine(c, src_mailbox, uid, verbose = False):
+    '''
+    From a connection "c", move the email insde "src_mailobx" with id "uid" to the folder "Quarantine"
+    '''
+
     quar_mailbox = 'Quarantine'
 
     # Copy this email to Quarantine
@@ -69,11 +88,20 @@ def move_to_quarantine(c, src_mailbox, uid, verbose = False):
     c.expunge()
 
 def copy(c, uid, dst_mailbox, verbose = False):
+    '''
+    From a connection "c", copy the email with id "uid" from the current mailbox to "dst_mailbox"
+    '''
+
     c.copy(str(uid), dst_mailbox)
     if verbose:
         print('MSG', uid, 'COPIED IN ', dst_mailbox)
 
 def download_attachments(c, uid, src_mailbox, verbose = False):
+    '''
+    STILL IN DEVELOPMENT
+    From a connection "c", download the attachments of the email with id "uid" inside the "src_mailbox"
+    '''
+
     c.select(src_mailbox)
     outputdir = "../../"
 
@@ -93,21 +121,17 @@ def download_attachments(c, uid, src_mailbox, verbose = False):
         if part.get_content_maintype() != 'multipart' and part.get('Content-Disposition') is not None:
             open(outputdir + part.get_filename(), 'wb').write(part.get_payload(decode=True))
 
-
-def tag_email(c, uid, src_mailbox, verbose = False):
-    c.select(src_mailbox)
-
-    typ, msg_data = c.fetch(str(uid), '(BODY.PEEK[HEADER])')
-    #pprint.pprint(msg_data)
-
-
 def sanitize():
     pass
 
 
 if __name__ == '__main__':
+    '''
+    Retrieve email with id = 2 inside the INBOX folder
+    '''
+
     #hostname = 'imap-mail.outlook.com'
-    hostname = '40.97.41.114'
+    hostname = '40.97.41.114' # IP of imap-mail.outlook.com
     username = sys.argv[1]
     password = sys.argv[2]
 
@@ -120,6 +144,7 @@ if __name__ == '__main__':
     dst_mailbox = 'Quarantine'
 
     if search_message_id(c, src_mailbox, uid, verbose=True):
+        pass
         #create_quarantine(c, verbose = True)
         #move_to_quarantine(c, src_mailbox, uid, verbose=True)
         #download_attachments(c, uid, src_mailbox, verbose = True)

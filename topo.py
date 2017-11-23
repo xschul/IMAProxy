@@ -1,7 +1,9 @@
 #!/usr/bin/python
 
 """
-Example to create a Mininet topology and connect it to the internet via NAT
+Mininet topology connected to the internet via NAT
+This topology is composed by 2 hosts (h1 and h2) linked to a switch (s1)
+h1 (10.0.0.1) is considered as the proxy and h2 (10.0.0.2) as the user.
 """
 
 from mininet.cli import CLI

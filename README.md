@@ -4,7 +4,7 @@ Imap Proxy to sanitize attachments.
 
 ## Getting Started
 
-This project runs with Python 3 and virtualize a network using [Mininet](http://mininet.org/). 
+This project runs with Python 3 and virtualizes a network using [Mininet](http://mininet.org/). 
 
 ### Installing
 
@@ -58,7 +58,7 @@ cd IMAProxy/
 sudo python topo.py
 ```
 
-Two hosts (h1 and h2) are connected to a switch (s1). In this topology, we will considered h1 as the proxy and h2 as an user.
+Two hosts (h1 and h2) are connected to a switch (s1). In this topology, we will considered h1 as the proxy and h2 as the user.
 
 If you want to retrieve emails from h2, use:
 
@@ -66,10 +66,13 @@ If you want to retrieve emails from h2, use:
 h2 python3 /home/mininet/mininet/IMAProxy/hosts/src/imapcommands.py $hotmailAccount $password
 ```
 
+At this moment, the main method of this script fetch the second email inside the "INBOX" folder of the account.
+
 The proxy does not work yet.
 
 ## Built With
 
+* [Python](https://www.python.org/download/releases/3.0/) - Python 3.0
 * [imaplib](https://docs.python.org/2/library/imaplib.html) - IMAP4 protocol client
 * [Mininet](https://http://mininet.org/) - Virtual network
 
