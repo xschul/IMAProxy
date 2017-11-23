@@ -1,16 +1,14 @@
 import imaplib
 import pprint
 import email
+import sys
 
-def open_connection(hostname, username, password, port = 0, verbose = False):
+def open_connection(hostname, username, password, verbose = False):
     # Connect to hostname
     if verbose:
         print('Connecting to', hostname)
 
-    if port == 0: 
-        connection = imaplib.IMAP4_SSL(hostname)
-    else:
-        connection = imaplib.IMAP4_SSL(hostname, port)
+    connection = imaplib.IMAP4_SSL(hostname)
 
     if verbose:
         print('Logging in as', username)
@@ -18,6 +16,7 @@ def open_connection(hostname, username, password, port = 0, verbose = False):
     # Connect to account(username, password)
     try:
         connection.login(username, password)
+        print('Logged in')
     except Exception as err:
         print('ERROR:', err)
 
@@ -109,27 +108,25 @@ def sanitize():
 if __name__ == '__main__':
     #hostname = 'imap-mail.outlook.com'
     hostname = '40.97.41.114'
-    username = 'mt2017pr@hotmail.com'
-    password = 'ImapProxy'
-    port = 10000
+    username = sys.argv[1]
+    password = sys.argv[2]
 
     # Open connection
-    with open_connection(hostname, username, password, verbose = True) as c:
-        print(c)
+    c = open_connection(hostname, username, password, verbose = True)
+    print(c)
 
-        uid = 2
-        src_mailbox = 'INBOX'
-        dst_mailbox = 'Quarantine'
+    uid = 2
+    src_mailbox = 'INBOX'
+    dst_mailbox = 'Quarantine'
 
-        if search_message_id(c, src_mailbox, uid, verbose=True):
-            pass
-            #create_quarantine(c, verbose = True)
-            #move_to_quarantine(c, src_mailbox, uid, verbose=True)
-            #tag_email(c, uid, src_mailbox, verbose=True)
-            #download_attachments(c, uid, src_mailbox, verbose = True)
+    if search_message_id(c, src_mailbox, uid, verbose=True):
+        #create_quarantine(c, verbose = True)
+        move_to_quarantine(c, src_mailbox, uid, verbose=True)
+        #tag_email(c, uid, src_mailbox, verbose=True)
+        #download_attachments(c, uid, src_mailbox, verbose = True)
 
         # Search message in quarantine
         #search_message_id(c, dst_mailbox, uid, verbose=True)
 
-        c.close()
-        c.logout()
+    c.close()
+    c.logout()
