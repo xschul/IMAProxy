@@ -8,7 +8,7 @@ This project runs with Python 3 and virtualizes a network using [Mininet](http:/
 
 ### Installing
 
-First, you have to download and install a Mininet VM. An easy tutorial can be found [here](http://mininet.org/download/#option-1-mininet-vm-installation-easy-recommended). Then, I suggest you to use a graphical interface inside the VM. Once you are logged in to the VM (login: mininet, password: mininet), make sure ```apt``` is up to date:
+First, you have to download and install a Mininet VM. A tutorial can be found [here](http://mininet.org/download/#option-1-mininet-vm-installation-easy-recommended). Then, I suggest you using a graphical interface inside the VM. Once you are logged in to the VM (login: mininet, password: mininet), make sure ```apt``` is up to date:
 
 ```
 sudo apt-get update
@@ -58,7 +58,7 @@ cd IMAProxy/
 sudo python topo.py
 ```
 
-Two hosts (h1 and h2) are connected to a switch (s1). In this topology, we will considered h1 as the proxy and h2 as the user.
+Two hosts (h1 and h2) are connected to a switch (s1). In this topology, we will consider h1 as the proxy and h2 as the user.
 
 If you want to retrieve emails from h2, use:
 
@@ -66,7 +66,7 @@ If you want to retrieve emails from h2, use:
 h2 python3 /home/mininet/mininet/IMAProxy/hosts/src/imapcommands.py $hotmailAccount $password
 ```
 
-At this moment, the main method of this script fetch the second email inside the "INBOX" folder of the account.
+At this moment, the main method of this script fetches the second email inside the "INBOX" folder of the account.
 
 The proxy does not work yet.
 
