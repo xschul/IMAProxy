@@ -66,7 +66,7 @@ If you want to retrieve emails from h2, use:
 h2 python3 /home/mininet/mininet/IMAProxy/hosts/src/imapcommands.py $hotmailAccount $password
 ```
 
-At this moment, the main method of this script fetches the second email inside the "INBOX" folder of the account.
+At this moment, the main method of this script fetches the second email inside the "INBOX" folder of the account. This script won't work with a gmail account as it needs an additional security with Oauth.
 
 The proxy does not work yet.
 
