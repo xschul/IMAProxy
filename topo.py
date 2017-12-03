@@ -27,9 +27,17 @@ class Router( Node ):
         super( Router, self).config( **params )
         # Enable forwarding on the router
         self.cmd( 'sysctl net.ipv4.ip_forward=1' )
+        self.cmd( 'iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE' )
+
+        # Redirection to proxy (h2)
+        self.cmd( 'iptables -t nat -A PREROUTING -p tcp --dport 1030 -j DNAT --to-destination 172.16.0.100:1030' )
 
     def terminate( self ):
         self.cmd( 'sysctl net.ipv4.ip_forward=0' )
+        # Flush iptables rules
+        self.cmd( 'iptables -F' )
+        self.cmd( 'iptables -t nat -F' )
+
         super( Router, self ).terminate()
 
 
@@ -38,7 +46,7 @@ class NetworkTopo( Topo ):
 
     def build( self, **_opts ):
 
-        defaultIP = '192.168.1.1/24'  # IP address for r0-eth1
+        defaultIP = '192.168.1.1/8'  # IP address for r0-eth1
         router = self.addNode( 'r0', cls=Router, ip=defaultIP )
 
         s1, s2, s3 = [ self.addSwitch( s ) for s in 's1', 's2', 's3' ]
@@ -50,7 +58,7 @@ class NetworkTopo( Topo ):
         self.addLink( s3, router, intfName2='r0-eth3',
                       params2={ 'ip' : '10.0.0.1/8' } )
 
-        h1 = self.addHost( 'h1', ip='192.168.1.100/24',
+        h1 = self.addHost( 'h1', ip='192.168.1.100/8',
                            defaultRoute='via 192.168.1.1' )
         h2 = self.addHost( 'h2', ip='172.16.0.100/12',
                            defaultRoute='via 172.16.0.1' )
@@ -69,6 +77,7 @@ def run():
     # Internet connectivity
     r0 = net.get('r0')
     Intf( 'eth0', node=r0 )
+    r0.cmd( 'dhclient eth0' )
     net.start()
 
     info( '*** Routing Table on Router:\n' )
