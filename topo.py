@@ -29,8 +29,12 @@ class Router( Node ):
         self.cmd( 'sysctl net.ipv4.ip_forward=1' )
         self.cmd( 'iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE' )
 
+        # Internet connectivity
+        Intf( 'eth0', node=self )
+        self.cmd( 'dhclient eth0' )
+
         # Redirection to proxy (h2)
-        self.cmd( 'iptables -t nat -A PREROUTING -p tcp --dport 1030 -j DNAT --to-destination 172.16.0.100:1030' )
+        self.cmd( 'iptables -t nat -A PREROUTING -p tcp --dport 993 -j DNAT --to-destination 10.0.0.100:1030' )
 
     def terminate( self ):
         self.cmd( 'sysctl net.ipv4.ip_forward=0' )
@@ -74,10 +78,6 @@ def run():
     topo = NetworkTopo()
     net = Mininet( topo=topo )  
     
-    # Internet connectivity
-    r0 = net.get('r0')
-    Intf( 'eth0', node=r0 )
-    r0.cmd( 'dhclient eth0' )
     net.start()
 
     info( '*** Routing Table on Router:\n' )

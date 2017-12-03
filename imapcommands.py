@@ -129,15 +129,13 @@ if __name__ == '__main__':
     '''
     Retrieve email with id = 2 inside the INBOX folder
     '''
-
-    #hostname = 'imap-mail.outlook.com'
+    
     hostname = '40.97.41.114' # IP of imap-mail.outlook.com
     username = sys.argv[1]
     password = sys.argv[2]
 
     # Open connection
     c = open_connection(hostname, username, password, verbose = True)
-    print(c)
 
     uid = 2
     src_mailbox = 'INBOX'

@@ -58,23 +58,24 @@ cd IMAProxy/
 sudo python topo.py
 ```
 
-Two hosts (h1 and h2) are connected to a switch (s1). In this topology, we will consider h1 as the proxy and h2 as the user.
+Three hosts (h1, h2 and h3) are connected to a linux router (r0). In this topology, we will consider h3 as the proxy and h1 and2 as the users.
 
 If you want to retrieve emails from h2, use:
 
 ```
-h2 python3 /home/mininet/mininet/IMAProxy/hosts/src/imapcommands.py $hotmailAccount $password
+h2 python3 imapcommands.py $hotmailAccount $password
 ```
 
 At this moment, the main method of this script fetches the second email inside the "INBOX" folder of the account. This script won't work with a gmail account as it needs an additional security with Oauth.
 
-The proxy does not work yet.
+The requests will be redirected to h3 (the proxy) but this proxy doesn't work yet.
 
 ## Built With
 
 * [Python](https://www.python.org/download/releases/3.0/) - Python 3.0
 * [imaplib](https://docs.python.org/2/library/imaplib.html) - IMAP4 protocol client
 * [Mininet](https://http://mininet.org/) - Virtual network
+* [iptables](http://ipset.netfilter.org/iptables.man.html) - Administration tool for IPv4 packet filtering and NAT   
 
 ## Authors
 
