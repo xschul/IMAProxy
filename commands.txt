@@ -1,2 +1,0 @@
-# Get messages from a host
-h2 python3 /home/mininet/mininet/IMAProxy/hosts/src/imapcommands.py $hotmailAccount $password
