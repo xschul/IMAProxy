@@ -4,7 +4,7 @@ import email
 import sys
 
 """
-IMAP library which is capable of retrieve emails, move an email to another folder and download the attachments
+IMAP library which is able of retrieve emails, move an email to another folder and download the attachments
 """
 
 def open_connection(hostname, username, password, verbose = False):

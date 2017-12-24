@@ -5,15 +5,14 @@ import sys
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 # Connect the socket to the port where the server is listening
-server_address = ('10.0.0.100', 1030)
-print ('connecting to %s port %s' % server_address)
+server_address = ('172.16.0.100', 993)
+print('connecting to,s port,s', server_address)
 sock.connect(server_address)
 
 try:
-    
     # Send data
-    print ('sending')
-    message = 'msg'
+    message = b'This is the message.  It will be repeated.'
+    print('sending ', message)
     sock.sendall(message)
 
     # Look for the response
@@ -23,8 +22,8 @@ try:
     while amount_received < amount_expected:
         data = sock.recv(16)
         amount_received += len(data)
-        print ('received "%s"' % data)
+        print('received ', data)
 
 finally:
-    print ('closing socket')
+    print('closing socket')
     sock.close()
