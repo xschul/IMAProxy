@@ -8,37 +8,7 @@ This project runs with Python 3 and virtualizes a network using [Mininet](http:/
 
 ### Installing
 
-First, you have to download and install a Mininet VM. A tutorial can be found [here](http://mininet.org/download/#option-1-mininet-vm-installation-easy-recommended). Then, I suggest you using a graphical interface inside the VM. Once you are logged in to the VM (login: mininet, password: mininet), make sure ```apt``` is up to date:
-
-```
-sudo apt-get update
-```
-
-Then, install the desktop environment of your choice.
-
-```
-sudo apt-get install xinit <environment>
-```
-
-where `<environment>` is your GUI environment of choice. Some options:
-
-* `lxde`: a reasonably compact and and fast desktop environment (I use this one)
-* `flwm`: a smaller but more primitive desktop environment
-* `ubuntu-desktop`: the full, heavyweight Ubuntu Unity desktop environment
-
-Then, you can start X11 in the VM console window using
-
-```
-startx
-```
-
-If you are running VirtualBox, you will want to install the VirtualBox Guest Additions using
-
-```
-sudo apt-get install virtualbox-guest-dkms
-```
-
-Reboot the VM, log in and run `startx`, and you should be able to resize the VM console window and desktop.
+First, you have to download and install a Mininet VM. A tutorial can be found [here](http://mininet.org/download/#option-1-mininet-vm-installation-easy-recommended). Then, if you want to use Wireshark or other tools with a GUI, I suggest you using a graphical interface inside the VM (installation tutorial available [here](https://github.com/mininet/mininet/wiki/FAQ#vm-console-gui)).
 
 ## Running
 

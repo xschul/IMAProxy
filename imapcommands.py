@@ -3,7 +3,6 @@ import pprint
 import email
 import sys
 
-
 import socket
 import ssl
 class IMAP4_SSL_CA_CHECKER(imaplib.IMAP4_SSL):
@@ -17,7 +16,6 @@ class IMAP4_SSL_CA_CHECKER(imaplib.IMAP4_SSL):
 """
 IMAP library which is able of retrieve emails, move an email to another folder and download the attachments
 """
-
 def open_connection(hostname, username, password, verbose = False):
     ''' 
     Open a connection to a hostname with the identifiers (username, password) 
@@ -29,7 +27,6 @@ def open_connection(hostname, username, password, verbose = False):
 
     #connection = imaplib.IMAP4_SSL(hostname)     --------- No certificat
     connection = IMAP4_SSL_CA_CHECKER(host = hostname)
-
 
     if verbose:
         print('Logging in as', username)
