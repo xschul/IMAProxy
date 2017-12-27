@@ -25,8 +25,7 @@ while True:
             data = connection.recv(16)
             print('received ', data)
             if data:
-                print('sending data back to the client')
-                connection.sendall(data)
+                pass
             else:
                 print('no more data from', client_address)
                 break
