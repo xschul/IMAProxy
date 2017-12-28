@@ -120,16 +120,12 @@ def download_attachments(c, uid, src_mailbox, verbose = False):
         if part.get_content_maintype() != 'multipart' and part.get('Content-Disposition') is not None:
             open(outputdir + part.get_filename(), 'wb').write(part.get_payload(decode=True))
 
-def sanitize():
-    pass
-
-
 if __name__ == '__main__':
     '''
     Retrieve email with id = 2 inside the INBOX folder
     '''
     
-    hostname = '10.0.0.100' # TODO: IP of imap-mail.outlook.com
+    hostname = '192.168.1.100' # TODO: IP of imap-mail.outlook.com
     #hostname = 'imap-mail.outlook.com'
     username = sys.argv[1]
     password = sys.argv[2]
@@ -137,20 +133,20 @@ if __name__ == '__main__':
     # Open connection
     c = open_connection(hostname, username, password, verbose = True)
 
-    '''
+    
     uid = 2
     src_mailbox = 'INBOX'
     dst_mailbox = 'Quarantine'
 
     if search_message_id(c, src_mailbox, uid, verbose=True):
-        pass
+        #pass
         #create_quarantine(c, verbose = True)
-        #move_to_quarantine(c, src_mailbox, uid, verbose=True)
+        move_to_quarantine(c, src_mailbox, uid, verbose=True)
         #download_attachments(c, uid, src_mailbox, verbose = True)
 
         # Search message in quarantine
-        #search_message_id(c, dst_mailbox, uid, verbose=True)
-	'''
+        search_message_id(c, dst_mailbox, uid, verbose=True)
+	
 
     c.close()
     c.logout()
