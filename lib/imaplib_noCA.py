@@ -240,7 +240,6 @@ class IMAP4:
                 self._mesg('new IMAP4 connection, tag=%s' % self.tagpre)
 
         self.welcome = self._get_response()
-        print(self.welcome)
         if 'PREAUTH' in self.untagged_responses:
             self.state = 'AUTH'
         elif 'OK' in self.untagged_responses:
@@ -311,7 +310,7 @@ class IMAP4:
 
     def send(self, data):
         """Send data to remote."""
-        print("data to send: ", data)
+        print("[-->] Data to send: ", data)
         self.sock.sendall(data)
 
 
@@ -1040,7 +1039,7 @@ class IMAP4:
 
         resp = self._get_line()
 
-        print(resp)
+        print("[<--]",resp)
 
         # Command completion response?
 

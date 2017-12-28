@@ -24,18 +24,19 @@ def process(conn_client):
 
             return new_request, tag_removed
 
+        # Listen COMMANDS from the user one by one
         while True:
             request_client = conn_client.recv()
             tag = conn_server._new_tag().decode()
             request_server, client_tag = change_tag(request_client, tag)
             
-            
-            if verbose:
-                print("[-->]: Request received ", request_client)
-            
             if request_client:
-                conn_server.send(request_server + CRLF)
+                conn_server.send(request_server)
 
+                if verbose:
+                    print("[-->]: Request sent ", request_server)
+
+                # Listen RESPONSES from the server
                 while True:
                     response_server = conn_server._get_line()
                     split_response = response_server.decode().split(" ")
@@ -59,7 +60,6 @@ def process(conn_client):
 
                     else:
                         conn_client.send(response_server + CRLF)
-
                         
             else:
                 break

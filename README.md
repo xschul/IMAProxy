@@ -28,17 +28,21 @@ cd IMAProxy/
 sudo python topo.py
 ```
 
-Three hosts (h1, h2 and h3) are connected to a linux router (r0). In this topology, we will consider h3 as the proxy and h1 and2 as the users.
+Three hosts (h1, h2 and h3) are connected to a linux router (r0). In this topology, we will consider h1 as the proxy and h2 as the user.
 
-If you want to retrieve emails from h2, use:
+First, start the proxy on h1:
 
 ```
-h2 python3 imapcommands.py $hotmailAccount $password
+h1 python3 proxy.py
 ```
 
-At this moment, the main method of this script fetches the second email inside the "INBOX" folder of the account. This script won't work with a gmail account as it needs an additional security with Oauth.
+If you want to retrieve the first email inside your INBOX:
 
-The requests will be redirected to h3 (the proxy) but this proxy doesn't work yet.
+```
+h2 python3 client.py $outlookAccount $password
+```
+
+With these commands, every requests from h2 will be send to h1. Then, h1 will transmit these requests to "imap-mail.outlook.com" and send the reponses back to h2.
 
 ## Built With
 
