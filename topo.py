@@ -33,8 +33,8 @@ class Router( Node ):
         Intf( 'eth0', node=self )
         self.cmd( 'dhclient eth0' )
 
-        # Redirection to proxy (h2)
-        self.cmd( 'iptables -t nat -A PREROUTING -p tcp --dport 993 -j DNAT --to-destination 10.0.0.100:1030' )
+        # Redirection to proxy (h3)   ------ TODO: redirect TLS
+        #self.cmd( 'iptables -t nat -A PREROUTING -p tcp --dport 993 -j DNAT --to-destination 10.0.0.100:1030' )
 
     def terminate( self ):
         self.cmd( 'sysctl net.ipv4.ip_forward=0' )
