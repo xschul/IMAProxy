@@ -49,10 +49,6 @@ def process(conn_client):
                             # Client stopped connection
                             return
 
-                        if split_response[1] == "BAD":
-                            # Unknown error
-                            print("WARNING: Bad command: ", request_server)
-
                     if split_response[0] == tag:
                         response_server, server_tag = change_tag(response_server, client_tag)
                         conn_client.send(response_server + CRLF)
