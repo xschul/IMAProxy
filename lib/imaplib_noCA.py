@@ -11,6 +11,7 @@ Public functions:       Internaldate2tuple
 """
 
 # Author: Piers Lauder <piers@cs.su.oz.au> December 1997.
+# SOME CHANGES DID FOR IMAPROXY PROJECT TO AUTHORIZE UNTRUSTED CA AND ENABLE DEBUG MODE
 #
 # Authentication code contributed by Donn Cave <donn@u.washington.edu> June 1998.
 # String method conversion by ESR, February 2001.

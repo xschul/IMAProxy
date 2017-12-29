@@ -103,7 +103,7 @@ def process(conn_client):
     hostname = 'imap-mail.outlook.com' # TODO: get the hostname
 
     if verbose: 
-        print("INFO:", username, password)
+        print("INFO:", username, "*****")
     
     conn_server = connect_to_server(username, password, hostname)
     serve(conn_client, conn_server)
