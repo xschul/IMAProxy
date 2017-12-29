@@ -1,8 +1,14 @@
-import socket, ssl, imaplib
+import socket, ssl, imaplib, sys
 
-HOST, PORT, CERT = '', 993, 'cert.pem' # TODO: change 993 to 1030
+# Global variables
+HOST, PORT, CERT = '', 993, 'cert.pem'
 CRLF = b'\r\n'
 verbose = False
+
+# Colors
+FAIL = '\033[91m'
+GREENBOLD = '\033[92m\033[1m'
+ENDC = '\033[0m'
 
 def process(conn_client):
     def connect_to_server(username, password, hostname):
@@ -62,17 +68,34 @@ def process(conn_client):
 
 
     # Send "OK Service Ready command to the client"
-    conn_client.sendall(b'* OK Service Ready. [Vg==]\r\n')
+    OK_service_command = b'* OK Service Ready. [Vg==]\r\n'
+    conn_client.sendall(OK_service_command)
     response = conn_client.recv()
+    client_tag = response.decode().split(" ")[0].encode()
 
-    # Send negociate commands
-    conn_client.sendall(b'* CAPABILITY IMAP4 IMAP4rev1 AUTH=PLAIN AUTH=XOAUTH2 SASL-IR UIDPLUS MOVE ID UNSELECT CHILDREN IDLE NAMESPACE LITERAL+\r\n')
-    conn_client.sendall(response[:5] + b' OK CAPABILITY completed.\r\n')
-    prefix_client = response[:5]
+    if verbose:
+        print("  [<--]:", OK_service_command)
+        print("[-->]:", response)
+
+    # Send CAPABILITY commands
+    capability_command = b'* CAPABILITY IMAP4 IMAP4rev1 AUTH=PLAIN AUTH=XOAUTH2 SASL-IR UIDPLUS MOVE ID UNSELECT CHILDREN IDLE NAMESPACE LITERAL+\r\n'
+    OK_capability_command = client_tag + b' OK CAPABILITY completed.\r\n'
+    conn_client.sendall(capability_command)
+    conn_client.sendall(OK_capability_command)
+
+    if verbose:
+        print("  [<--]:", capability_command)
+        print("  [<--]:", OK_capability_command)
 
     # Get identifiants and ACK login
     response = conn_client.recv()
-    conn_client.sendall(response[:5] + b' OK LOGIN completed.\r\n')
+    client_tag = response.decode().split(" ")[0].encode()
+    OK_login = client_tag + b' OK LOGIN completed.\r\n'
+    conn_client.sendall(OK_login)
+
+    if verbose:
+        print("[-->]:", response)
+        print("  [<--]:", OK_login)
 
     ids = response.decode().split(' ')
     username = ids[2]
@@ -90,8 +113,13 @@ def connection(ssock):
     try:
         conn = ssl.wrap_socket(ssock, certfile=CERT, server_side=True)
         process(conn)
+
     except ssl.SSLError as e:
-        print("Error:", e)
+        print("ERROR:", e)
+
+    except Exception as e:
+        print(FAIL, "ERROR WHILE CONNECTION:", e, ENDC)
+
     finally:
         if conn:
             conn.close()
@@ -102,11 +130,26 @@ def listening():
     sock.listen(1)
 
     while True:
-        conn = None
-        ssock, addr = sock.accept()
-        if verbose:
-            print("INFO: New connection from", addr)
-        connection(ssock)
+        try:
+            conn = None
+            ssock, addr = sock.accept()
+            if verbose:
+                print(GREENBOLD, "INFO: New connection from", addr, ENDC)
+
+            connection(ssock)
+            if verbose:
+                print(GREENBOLD, "INFO: No more data from", addr, ENDC)
+
+        except KeyboardInterrupt:
+            sock.close()
+            if verbose:
+                print(GREENBOLD, "INFO: Socket closed", ENDC)
+            break
+
+        except Exception as e:
+            sock.close()
+            print(FAIL, "ERROR WHILE LISTENING:", e, ENDC)
+            break
 
 if __name__ == '__main__':
     verbose = True

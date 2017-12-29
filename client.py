@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     client = imapclient.IMAPClient(hostname, username, password, verbose = True)
 
-    #search_message_1_inbox(client)
-    copy_to_quarantine(client, 'INBOX', 1)
+    search_message_1_inbox(client)
+    #copy_to_quarantine(client, 'INBOX', 1)
 
     client.close()
