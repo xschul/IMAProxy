@@ -1,10 +1,10 @@
-# IMAP Proxy
+# Python IMAP proxy server
 
-This is an IMAP Proxy to sanitize attachments.
+IMAP Proxy to sanitize attachments.
 
 ## Features
 
-* The Proxy acts transparently and interpret every IMAP command.
+* The proxy acts transparently and interpret every IMAP command.
 * Works with email applications as [Thunderbird](https://www.mozilla.org/en-US/thunderbird/).
 * **[TODO]** Inspect emails, sanitize the malicious ones and keep a copy in a Quarantine folder.
 * **[TODO]** Make it compatible with Gmail accounts
@@ -53,7 +53,7 @@ With these commands, every requests from h2 will be send to h1. Then, h1 will tr
 
 ## Built With
 
-* [Python](https://www.python.org/download/releases/3.0/) - Python 3.0
+* [Python3](https://www.python.org/download/releases/3.0/)
 * [imaplib](https://docs.python.org/2/library/imaplib.html) - IMAP4 protocol client
 * [Mininet](https://http://mininet.org/) - Virtual network
 * [iptables](http://ipset.netfilter.org/iptables.man.html) - Administration tool for IPv4 packet filtering and NAT   

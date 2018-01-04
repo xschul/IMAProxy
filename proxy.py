@@ -12,7 +12,7 @@ capabilities = (
     'IMAP4',
     'IMAP4rev1',
     'AUTH=PLAIN',
-    #'AUTH=XOAUTH2', 
+    #'AUTH=XOAUTH2', # TODO
     'SASL-IR',
     #'IDLE',
     'UIDPLUS',
@@ -23,20 +23,6 @@ capabilities = (
     'NAMESPACE',
     'LITERAL'
     )
-
-# Verbose variables
-RECV_CL = "[-->]:"
-SEND_CL = "[<--]:"
-RECV_SR = "  [<--]:"
-SEND_SR = "  [-->]:"
-INFO = "[INFO]:"
-ERROR= "[ERROR]:"
-verbose = False
-
-# Colors
-RED = '\033[91m'
-GREENBOLD = '\033[92m\033[1m'
-ENDC = '\033[0m'
 
 def process(conn_client):
     def get_attr(request):
@@ -61,7 +47,7 @@ def process(conn_client):
                 password = decoded_req[2].decode()
 
             elif auth_type == "XOAUTH2":
-                pass 
+                pass # TODO
 
             if username.startswith('"') and username.endswith('"'):
                 username = username[1:-1]
@@ -74,18 +60,18 @@ def process(conn_client):
         # Start service
         service_ready = ('* OK Service Ready.').encode() + CRLF
         conn_client.sendall(service_ready)
-        print(SEND_CL, service_ready)
+        log(SEND_CL + str(service_ready))
 
         while True: 
             request = conn_client.recv()
-            print(RECV_CL, request)
+            log(RECV_CL + str(request))
 
             tag = get_attr(request)[0]
             command = get_attr(request)[1].upper()
 
             if command == 'CAPABILITY':
                 capability_command = '* CAPABILITY ' + ' '.join(cap for cap in capabilities) + ' +' 
-                print(capability_command)
+                log(str(capability_command))
 
                 conn_client.sendall(capability_command.encode()+ CRLF)
                 conn_client.sendall(ok_command(tag, command))
@@ -102,15 +88,14 @@ def process(conn_client):
                 return get_login(request, command)
 
             else:
-                print(RED, ERROR, 'Unknown command for request', request, ENDC)
+                log(RED+ERROR+'Unknown command from request '+str(request)+ENDC)
                 return
 
     def connect_to_server(username, password, hostname):
         connection = imaplib.IMAP4_SSL(hostname)
         connection.login(username, password)
 
-        if verbose:
-            print(INFO, 'Logged in')
+        log(INFO+'Logged in')
 
         return connection
 
@@ -124,19 +109,17 @@ def process(conn_client):
             return new_request.encode()+CRLF, received_tag
 
         def transmit(request_client):
-            print(RECV_CL, request_client)
+            log(RECV_CL+str(request_client))
             tag_server = conn_server._new_tag().decode()
             request_server, tag_client = convert_request(request_client, tag_server)
 
 
             conn_server.send(request_server)
-            print(SEND_SR, request_server)
+            log(SEND_SR+str(request_server))
 
             while True:
                 # Listen response from the server
-                print("Wait for server")
                 response_server = conn_server._get_line()+CRLF
-                print("Received from server")
                 attr_response = get_attr(response_server)
 
                 tag = None if len(attr_response) < 1 else attr_response[0]
@@ -145,18 +128,18 @@ def process(conn_client):
                 if command == "BYE":
                     # Client stopped connection
                     conn_client.send(response_server)
-                    print(SEND_CL, response_server)
+                    log(SEND_CL+str(response_server))
                     return
 
                 if command == "BAD":
                     # Bad command
-                    print(RED, ERROR, "Bad command:", response_server, ENDC)
+                    log(RED+ERROR+"Bad command: "+str(response_server)+ENDC)
 
                 if tag_server == tag:
                     # Last response to transmit from the initial request
                     response_server, server_tag = convert_request(response_server, tag_client)
                     conn_client.send(response_server)
-                    print(SEND_CL, response_server)
+                    log(SEND_CL+str(response_server))
                     break
 
                 else:
@@ -166,9 +149,7 @@ def process(conn_client):
         def wait_request():
             # Listen requests from the user
             while True:
-                print("Wait for client")
                 request_client = conn_client.recv()
-                print("Received from client")
                 
                 if request_client:
                     transmit(request_client)
@@ -206,19 +187,15 @@ def listening():
             conn = None
             ssock, addr = sock.accept()
 
-            if verbose:
-                print(GREENBOLD, INFO, "New connection from", addr, ENDC)
-
+            log(GREENBOLD+INFO+'New connection from '+str(addr[0])+':'+str(addr[1])+ENDC)
             pool.map(connection, (ssock,))
-            if verbose:
-                print(GREENBOLD, INFO, "No more data from", addr, ENDC)
+            log(GREENBOLD+INFO+'No more data from '+str(addr[0])+':'+str(addr[1])+ENDC)
 
         except KeyboardInterrupt:
             if sock:
                 sock.close()
 
-            if verbose:
-                print(GREENBOLD, INFO,"Socket closed", ENDC)
+            log(GREENBOLD+INFO+"Socket closed"+ENDC)
             break
 
         '''except Exception as e:
@@ -228,6 +205,27 @@ def listening():
 
     if sock:
         sock.close()
+
+''' VERBOSE '''
+# Verbose variables
+RECV_CL = "[-->]: "
+SEND_CL = "[<--]: "
+RECV_SR = "  [<--]: "
+SEND_SR = "  [-->]: "
+INFO = "[INFO]: "
+ERROR= "[ERROR]: "
+verbose = False
+
+# Colors
+RED = '\033[91m'
+GREENBOLD = '\033[92m\033[1m'
+ENDC = '\033[0m'
+
+# Verbose method
+def log(s):
+    if verbose:
+        print(s)
+''' END VERBOSE '''
 
 if __name__ == '__main__':
     verbose = True
