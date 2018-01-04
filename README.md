@@ -1,27 +1,32 @@
 # IMAP Proxy
 
-Imap Proxy to sanitize attachments.
+This is an IMAP Proxy to sanitize attachments.
 
-## Getting Started
+## Features
 
-This project runs with Python 3 and virtualizes a network using [Mininet](http://mininet.org/). 
+* The Proxy acts transparently and interpret every IMAP command.
+* Works with email applications as [Thunderbird](https://www.mozilla.org/en-US/thunderbird/).
+* **[TODO]** Inspect emails, sanitize the malicious ones and keep a copy in a Quarantine folder.
+* **[TODO]** Make it compatible with Gmail accounts
 
-### Installing
+## Try it using Mininet
 
-First, you have to download and install a Mininet VM. A tutorial can be found [here](http://mininet.org/download/#option-1-mininet-vm-installation-easy-recommended). Then, if you want to use Wireshark or other tools with a GUI, I suggest you using a graphical interface inside the VM (installation tutorial available [here](https://github.com/mininet/mininet/wiki/FAQ#vm-console-gui)).
+Mininet creates a realistic virtual network, running real kernel, switch and application code, on a single machine (VM, cloud or native), in seconds, with a single command.
 
-## Running
+If you want to try this implementation in this virtualized environment, you can download and install a Mininet VM. A tutorial can be found [here](http://mininet.org/download/#option-1-mininet-vm-installation-easy-recommended). Then, if you want to use Wireshark or other tools with a GUI, I suggest you using a graphical interface inside the VM (installation tutorial available [here](https://github.com/mininet/mininet/wiki/FAQ#vm-console-gui)).
 
-### Run the network
+### Installation
 
-First, clone this repository in the mininet folder.
+Clone this repository in the mininet folder.
 
 ```
 cd /home/mininet/mininet/
 git clone https://github.com/xschul/IMAProxy.git
 ```
 
-Now, you can create the network using:
+### Run the network
+
+You can create the network using:
 
 ```
 cd IMAProxy/
@@ -30,13 +35,15 @@ sudo python topo.py
 
 Three hosts (h1, h2 and h3) are connected to a linux router (r0). In this topology, we will consider h1 as the proxy and h2 as the user.
 
+### Run the proxy
+
 First, start the proxy on h1:
 
 ```
 h1 python3 proxy.py
 ```
 
-If you want to retrieve the first email inside your INBOX:
+Now, you can launch [Thunderbird](https://www.mozilla.org/en-US/thunderbird/) on the host h2 or you can simply retrieve the first email inside your INBOX using:
 
 ```
 h2 python3 client.py $outlookAccount $password

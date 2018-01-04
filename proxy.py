@@ -1,8 +1,28 @@
-import socket, ssl, imaplib, sys, struct
+import sys
+import socket, ssl, imaplib
+import base64
+from multiprocessing.dummy import Pool as ThreadPool 
 
 # Global variables
 HOST, PORT, CERT = '', 993, 'cert.pem'
 CRLF = b'\r\n'
+
+# Capabilities of the proxy
+capabilities = ( 
+    'IMAP4',
+    'IMAP4rev1',
+    'AUTH=PLAIN',
+    #'AUTH=XOAUTH2', 
+    'SASL-IR',
+    #'IDLE',
+    'UIDPLUS',
+    'MOVE',
+    'ID',
+    'UNSELECT', 
+    'CHILDREN', 
+    'NAMESPACE',
+    'LITERAL'
+    )
 
 # Verbose variables
 RECV_CL = "[-->]:"
@@ -18,12 +38,10 @@ RED = '\033[91m'
 GREENBOLD = '\033[92m\033[1m'
 ENDC = '\033[0m'
 
-
-
 def process(conn_client):
     def get_attr(request):
         lst = request.decode().split()
-        return ([s.replace('\r\n', '').replace('"', '') for s in lst])
+        return ([s.replace('\r\n', '') for s in lst])
 
     def connect_to_client():
 
@@ -31,7 +49,30 @@ def process(conn_client):
             ok_command = tag + ' OK ' + command + ' completed.' + '\r\n'
             return ok_command.encode()
 
-        service_ready = ('* OK Service Ready').encode() + CRLF
+        def get_login(request, auth_type):
+            #
+            if auth_type == "LOGIN":
+                username = get_attr(request)[2]
+                password = get_attr(request)[3]
+
+            elif auth_type == "PLAIN":
+                decoded_req = base64.b64decode(request).split(b'\x00')
+                username = decoded_req[1].decode()
+                password = decoded_req[2].decode()
+
+            elif auth_type == "XOAUTH2":
+                pass 
+
+            if username.startswith('"') and username.endswith('"'):
+                username = username[1:-1]
+
+            if password.startswith('"') and password.endswith('"'):
+                password = password[1:-1]
+
+            return username, password
+
+        # Start service
+        service_ready = ('* OK Service Ready.').encode() + CRLF
         conn_client.sendall(service_ready)
         print(SEND_CL, service_ready)
 
@@ -40,34 +81,25 @@ def process(conn_client):
             print(RECV_CL, request)
 
             tag = get_attr(request)[0]
-            command = get_attr(request)[1]
+            command = get_attr(request)[1].upper()
 
-            if command.upper() == 'CAPABILITY': # TODO: add IDLE + make request cleaner
-                capability_command = b'* CAPABILITY IMAP4 IMAP4rev1 AUTH=PLAIN AUTH=XOAUTH2 SASL-IR UIDPLUS MOVE ID UNSELECT CHILDREN NAMESPACE LITERAL+\r\n'
-                conn_client.sendall(capability_command)
-                print(SEND_CL, capability_command)
+            if command == 'CAPABILITY':
+                capability_command = '* CAPABILITY ' + ' '.join(cap for cap in capabilities) + ' +' 
+                print(capability_command)
+
+                conn_client.sendall(capability_command.encode()+ CRLF)
                 conn_client.sendall(ok_command(tag, command))
-                print(SEND_CL, ok_command(tag, command))
 
-            elif command.upper() == 'AUTHENTICATE':
+            elif command == 'AUTHENTICATE':
+                auth_type = get_attr(request)[2]
                 conn_client.sendall(b'+\r\n')
-                print(SEND_CL, b'+\r\n')
-                response = conn_client.recv()
-                print(RECV_CL, response)
+                request = conn_client.recv()
                 conn_client.sendall(ok_command(tag, command))
-                print(SEND_CL, ok_command(tag, command))
+                return get_login(request, auth_type)
 
-            elif command.upper() == 'LOGIN':
-                username = get_attr(request)[2]
-                password = get_attr(request)[3]
-                hostname = 'imap-mail.outlook.com' # TODO: get the hostname
+            elif command == 'LOGIN':
                 conn_client.sendall(ok_command(tag, command))
-                print(SEND_CL, ok_command(tag, command))
-
-                return username, password, hostname
-
-            elif command.upper() == 'LOGOUT':
-                conn_client.sendall(ok_command(tag, command))
+                return get_login(request, command)
 
             else:
                 print(RED, ERROR, 'Unknown command for request', request, ENDC)
@@ -102,9 +134,10 @@ def process(conn_client):
 
             while True:
                 # Listen response from the server
+                print("Wait for server")
                 response_server = conn_server._get_line()+CRLF
+                print("Received from server")
                 attr_response = get_attr(response_server)
-                print(RECV_SR, response_server)
 
                 tag = None if len(attr_response) < 1 else attr_response[0]
                 command = None if len(attr_response) <= 1 else attr_response[1]
@@ -114,6 +147,10 @@ def process(conn_client):
                     conn_client.send(response_server)
                     print(SEND_CL, response_server)
                     return
+
+                if command == "BAD":
+                    # Bad command
+                    print(RED, ERROR, "Bad command:", response_server, ENDC)
 
                 if tag_server == tag:
                     # Last response to transmit from the initial request
@@ -125,12 +162,13 @@ def process(conn_client):
                 else:
                     # Transmit answer from the server to the client
                     conn_client.send(response_server)
-                    print(SEND_CL, response_server)
 
         def wait_request():
             # Listen requests from the user
             while True:
+                print("Wait for client")
                 request_client = conn_client.recv()
+                print("Received from client")
                 
                 if request_client:
                     transmit(request_client)
@@ -140,27 +178,28 @@ def process(conn_client):
 
         wait_request()
 
-    username, password, hostname = connect_to_client()
-    conn_server = connect_to_server(username, password, hostname)
-    serve(conn_client, conn_server)
+    # Get the credentials of the client
+    username, password = connect_to_client()
+    hostname = 'imap-mail.outlook.com' # TODO: get the hostname
+    
+    if username and password:
+        # Connect with the real server
+        conn_server = connect_to_server(username, password, hostname)
+        # Transmit data between client and server
+        serve(conn_client, conn_server)
 
 
 def connection(ssock):
-    try:
-        conn = ssl.wrap_socket(ssock, certfile=CERT, server_side=True)
-        process(conn)
-
-    except ssl.SSLError as e:
-        print(ERROR, e, ENDC)
-
-    finally:
-        if conn:
-            conn.close()
+    conn = ssl.wrap_socket(ssock, certfile=CERT, server_side=True)
+    process(conn)
+    conn.close()
 
 def listening():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((HOST, PORT))
-    sock.listen(1)
+
+    sock.listen(5)
+    pool = ThreadPool(5)
 
     while True:
         try:
@@ -170,11 +209,14 @@ def listening():
             if verbose:
                 print(GREENBOLD, INFO, "New connection from", addr, ENDC)
 
-            connection(ssock)
+            pool.map(connection, (ssock,))
             if verbose:
                 print(GREENBOLD, INFO, "No more data from", addr, ENDC)
 
         except KeyboardInterrupt:
+            if sock:
+                sock.close()
+
             if verbose:
                 print(GREENBOLD, INFO,"Socket closed", ENDC)
             break
@@ -184,7 +226,8 @@ def listening():
             print(RED, ERROR, e, ENDC)
             break'''
 
-    sock.close()
+    if sock:
+        sock.close()
 
 if __name__ == '__main__':
     verbose = True
