@@ -34,7 +34,8 @@ if __name__ == '__main__':
         ('recent', ()),
         ('close', ()),
         ('delete', ('/tmp/yyz',)),
-        ('delete', ('/tmp/yyy',)))
+        ('delete', ('/tmp/yyy',)),
+        ('delete', ('/tmp',)))
 
     test_seq2 = (
         # Sanitize commands

@@ -4,7 +4,7 @@ IMAP Proxy to sanitize attachments.
 
 ## Features
 
-* The proxy acts transparently and interpret every IMAP command
+* The proxy acts transparently and interprets every IMAP command
 * Support TLS/SSL for both client and server connections
 * Works with email application [Thunderbird](https://www.mozilla.org/en-US/thunderbird/)
 * Multiple tests
