@@ -4,10 +4,15 @@ IMAP Proxy to sanitize attachments.
 
 ## Features
 
-* The proxy acts transparently and interpret every IMAP command.
-* Works with email applications as [Thunderbird](https://www.mozilla.org/en-US/thunderbird/).
-* **[TODO]** Inspect emails, sanitize the malicious ones and keep a copy in a Quarantine folder.
-* **[TODO]** Make it compatible with Gmail accounts
+* The proxy acts transparently and interpret every IMAP command
+* Support TLS/SSL for both client and server connections
+* Works with email application [Thunderbird](https://www.mozilla.org/en-US/thunderbird/)
+* Multiple tests
+* Asynchronous, non-blocking socket connections
+* Possibility to display IMAP payload
+* **[TODO]** Inspect emails, sanitize the malicious ones and keep a copy in a Quarantine folder
+* **[TODO]** Make it compatible with Gmail accounts (OAUTH2 authentificate)
+* **[TODO]** Proxy detects the hostname requested from the user's account
 
 ## Try it using Mininet
 
@@ -43,13 +48,11 @@ First, start the proxy on h1:
 h1 python3 proxy.py
 ```
 
-Now, you can launch [Thunderbird](https://www.mozilla.org/en-US/thunderbird/) on the host h2 or you can simply retrieve the first email inside your INBOX using:
+Now, you can launch [Thunderbird](https://www.mozilla.org/en-US/thunderbird/) on the host h2 or you can run the tests:
 
 ```
-h2 python3 client.py $outlookAccount $password
+h2 python3 tests.py $userAccount $password
 ```
-
-With these commands, every requests from h2 will be send to h1. Then, h1 will transmit these requests to "imap-mail.outlook.com" and send the reponses back to h2.
 
 ## Built With
 
@@ -60,6 +63,6 @@ With these commands, every requests from h2 will be send to h1. Then, h1 will tr
 
 ## Authors
 
-* **Xavier Schul** - *UCL Student*
+* **Xavier Schul**
 * **CIRCL** - *Computer Incident Response Center Luxembourg* - [CIRCL](https://www.circl.lu/)
 

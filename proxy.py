@@ -1,11 +1,14 @@
 import sys
 import socket, ssl, imaplib
+import re
 import base64
-from multiprocessing.dummy import Pool as ThreadPool 
+import threading
 
 # Global variables
 HOST, PORT, CERT = '', 993, 'cert.pem'
 CRLF = b'\r\n'
+_digits = re.compile('\d')
+last_tag_client = None
 
 # Capabilities of the proxy
 capabilities = ( 
@@ -71,8 +74,6 @@ def process(conn_client):
 
             if command == 'CAPABILITY':
                 capability_command = '* CAPABILITY ' + ' '.join(cap for cap in capabilities) + ' +' 
-                log(str(capability_command))
-
                 conn_client.sendall(capability_command.encode()+ CRLF)
                 conn_client.sendall(ok_command(tag, command))
 
@@ -102,7 +103,17 @@ def process(conn_client):
     def serve(conn_client, conn_server):
         def convert_request(request, tag):
             attrs = get_attr(request)
+
+            if not attrs:
+                # Empty request --> end of a client sending sequence
+                return request, 'EMPTY'
+
             received_tag = attrs[0]
+
+            if not bool(_digits.search(received_tag)):
+                # The request contains not tag --> client sending sequence
+                return request, None
+
             attrs[0] = tag
             new_request = ' '.join(str(attr) for attr in attrs)
 
@@ -112,39 +123,51 @@ def process(conn_client):
             log(RECV_CL+str(request_client))
             tag_server = conn_server._new_tag().decode()
             request_server, tag_client = convert_request(request_client, tag_server)
+            if tag_client and tag_client != 'EMPTY':
+                global last_tag_client
+                last_tag_client = tag_client
 
 
             conn_server.send(request_server)
             log(SEND_SR+str(request_server))
 
-            while True:
+            while tag_client:
                 # Listen response from the server
                 response_server = conn_server._get_line()+CRLF
+                log(RECV_SR+str(response_server))
                 attr_response = get_attr(response_server)
 
                 tag = None if len(attr_response) < 1 else attr_response[0]
                 command = None if len(attr_response) <= 1 else attr_response[1]
 
-                if command == "BYE":
+                if command == 'BYE':
                     # Client stopped connection
                     conn_client.send(response_server)
                     log(SEND_CL+str(response_server))
                     return
 
-                if command == "BAD":
+                if command == 'BAD':
                     # Bad command
-                    log(RED+ERROR+"Bad command: "+str(response_server)+ENDC)
-
-                if tag_server == tag:
-                    # Last response to transmit from the initial request
-                    response_server, server_tag = convert_request(response_server, tag_client)
                     conn_client.send(response_server)
-                    log(SEND_CL+str(response_server))
+                    print(RED+ERROR+"Bad command: "+str(request_client)+ENDC)
+
+                if tag == '+':
+                    # Request from client incoming
+                    conn_client.send(response_server)
+                    log(SEND_CL+"Client seq: "+str(response_server))
+                    break
+
+                if tag == tag_server or tag_client == 'EMPTY' and tag != '*':
+                    # Last response from server
+                    response_server, server_tag = convert_request(response_server, last_tag_client)
+                    conn_client.send(response_server)
+                    log(SEND_CL+"Last: "+str(response_server))
                     break
 
                 else:
-                    # Transmit answer from the server to the client
+                    # Response from server incoming
                     conn_client.send(response_server)
+                    log(SEND_CL+"Server seq: "+str(response_server))
 
         def wait_request():
             # Listen requests from the user
@@ -171,31 +194,35 @@ def process(conn_client):
 
 
 def connection(ssock):
-    conn = ssl.wrap_socket(ssock, certfile=CERT, server_side=True)
-    process(conn)
-    conn.close()
+    try:
+        conn = ssl.wrap_socket(ssock, certfile=CERT, server_side=True)
+        process(conn)
+    except ssl.SSLError as e:
+        log(RED+ERROR+e+ENDC)
+    finally:
+        if conn:
+            conn.close()
 
 def listening():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((HOST, PORT))
 
     sock.listen(5)
-    pool = ThreadPool(5)
 
     while True:
         try:
             conn = None
             ssock, addr = sock.accept()
 
-            log(GREENBOLD+INFO+'New connection from '+str(addr[0])+':'+str(addr[1])+ENDC)
-            pool.map(connection, (ssock,))
-            log(GREENBOLD+INFO+'No more data from '+str(addr[0])+':'+str(addr[1])+ENDC)
+            print(GREENBOLD+INFO+'New connection from '+str(addr[0])+':'+str(addr[1])+ENDC)
+            threading.Thread(target = connection, args = (ssock,)).start()
+            print(GREENBOLD+INFO+'No more data from '+str(addr[0])+':'+str(addr[1])+ENDC)
 
         except KeyboardInterrupt:
             if sock:
                 sock.close()
 
-            log(GREENBOLD+INFO+"Socket closed"+ENDC)
+            print(GREENBOLD+INFO+"Socket closed"+ENDC)
             break
 
         '''except Exception as e:
@@ -224,7 +251,7 @@ ENDC = '\033[0m'
 # Verbose method
 def log(s):
     if verbose:
-        print(s)
+        print(s.replace('\r\n', ''))
 ''' END VERBOSE '''
 
 if __name__ == '__main__':

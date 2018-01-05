@@ -390,6 +390,7 @@ class IMAP4:
             date_time = Time2Internaldate(date_time)
         else:
             date_time = None
+        print('to send:' ,message)
         literal = MapCRLF.sub(CRLF, message)
         if self.utf8_enabled:
             literal = b'UTF8 (' + literal + b')'
