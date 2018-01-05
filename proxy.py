@@ -7,7 +7,7 @@ import threading
 # Global variables
 HOST, PORT, CERT = '', 993, 'cert.pem'
 CRLF = b'\r\n'
-_digits = re.compile('\d')
+_digits = re.compile(r'\d+')
 last_tag_client = None
 
 # Capabilities of the proxy
@@ -101,6 +101,33 @@ def process(conn_client):
         return connection
 
     def serve(conn_client, conn_server):
+        def build_request(list_attr):
+            request = ' '.join(str(attr) for attr in list_attr)
+            return request.encode() +CRLF
+
+        def handle_multiple_requests(request):
+            ''' Some requests could contain mutliple request '''
+            attrs = get_attr(request)
+            
+            if attrs and bool(_digits.search(attrs[0])):
+                # Get the first tag of the request
+                tag = attrs[0]
+                num_tag = re.findall(r'\d+', tag)[0]
+                prefix_tag = tag.replace(num_tag, '')
+
+                next_tag = prefix_tag + str(int(num_tag)+1)
+                if next_tag in attrs:
+                    # Two requests spotted - Send the first request
+                    first_request = convert_request(build_request(attrs[0:attrs.index(next_tag)]), tag)[0]
+                    log(SEND_SR+str(first_request))
+                    conn_server.send(first_request)
+                    # Handle the second request
+                    last_request = build_request(attrs[attrs.index(next_tag):])
+                    return handle_multiple_requests(last_request)
+
+            # No multiple requests
+            return request
+
         def convert_request(request, tag):
             attrs = get_attr(request)
 
@@ -115,11 +142,12 @@ def process(conn_client):
                 return request, None
 
             attrs[0] = tag
-            new_request = ' '.join(str(attr) for attr in attrs)
+            converted_request = build_request(attrs)
 
-            return new_request.encode()+CRLF, received_tag
+            return converted_request, received_tag
 
         def transmit(request_client):
+            request_client = handle_multiple_requests(request_client)
             log(RECV_CL+str(request_client))
             tag_server = conn_server._new_tag().decode()
             request_server, tag_client = convert_request(request_client, tag_server)
