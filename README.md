@@ -11,7 +11,7 @@ IMAP Proxy to sanitize attachments.
 * Asynchronous, non-blocking socket connections
 * Possibility to display IMAP payload
 * **[TODO]** Inspect emails, sanitize the malicious ones and keep a copy in a Quarantine folder
-* **[TODO]** Make it compatible with Gmail accounts (OAUTH2 authentificate)
+* **[TODO]** Make it compatible with Gmail accounts (OAUTH2 authenticate)
 * **[TODO]** Proxy detects the hostname requested from the user's account
 
 ## Try it using Mininet
@@ -42,15 +42,10 @@ Three hosts (h1, h2 and h3) are connected to a linux router (r0). In this topolo
 
 ### Run the proxy
 
-First, start the proxy on h1:
+First, start the proxy on h1. Then, you can launch [Thunderbird](https://www.mozilla.org/en-US/thunderbird/) on the host h2 or you can run the tests:
 
 ```
 h1 python3 proxy.py
-```
-
-Now, you can launch [Thunderbird](https://www.mozilla.org/en-US/thunderbird/) on the host h2 or you can run the tests:
-
-```
 h2 python3 tests.py $userAccount $password
 ```
 
@@ -59,7 +54,6 @@ h2 python3 tests.py $userAccount $password
 * [Python3](https://www.python.org/download/releases/3.0/)
 * [imaplib](https://docs.python.org/2/library/imaplib.html) - IMAP4 protocol client
 * [Mininet](https://http://mininet.org/) - Virtual network
-* [iptables](http://ipset.netfilter.org/iptables.man.html) - Administration tool for IPv4 packet filtering and NAT   
 
 ## Authors
 

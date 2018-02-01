@@ -10,7 +10,7 @@ a single switch:
 
     r0-eth1 - s1-eth1 - h1-eth0 (IP: 192.168.1.100)
     r0-eth2 - s2-eth1 - h2-eth0 (IP: 172.16.0.100)
-    r0-eth3 - s3-eth1 - h3-eth0 (IP: 10.0.0.100)
+    r0-eth3 - s3-eth1 - h3-eth0 (IP: 152.16.0.100)
 """
 
 from mininet.topo import Topo
@@ -33,8 +33,10 @@ class Router( Node ):
         Intf( 'eth0', node=self )
         self.cmd( 'dhclient eth0' )
 
-        # Redirection to proxy (h3)
+        # Redirection to proxy (h2)
         self.cmd( 'iptables -t nat -A PREROUTING -p tcp --dport 993 -s 172.16.0.100 -j DNAT --to-destination 192.168.1.100:993' )
+        # Redirection to proxy (h3)
+        self.cmd( 'iptables -t nat -A PREROUTING -p tcp --dport 993 -s 152.16.0.100 -j DNAT --to-destination 192.168.1.100:993' )
 
     def terminate( self ):
         self.cmd( 'sysctl net.ipv4.ip_forward=0' )

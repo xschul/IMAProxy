@@ -1,4 +1,5 @@
 from lib import imaplib_noCA as imaplib
+import email
 import sys
 
 # Print variables
@@ -13,7 +14,6 @@ FAIL = '[FAILED]: '
 
 if __name__ == '__main__':
 
-    host = 'imap-mail.outlook.com'
     USER = sys.argv[1]
     PASSWD = sys.argv[2]
 
@@ -34,8 +34,7 @@ if __name__ == '__main__':
         ('recent', ()),
         ('close', ()),
         ('delete', ('/tmp/yyz',)),
-        ('delete', ('/tmp/yyy',)),
-        ('delete', ('/tmp',)))
+        ('delete', ('/tmp/yyy',)))
 
     test_seq2 = (
         # Sanitize commands
@@ -53,6 +52,7 @@ if __name__ == '__main__':
     succeed_tests = []
 
     def run(cmd, args):
+        print(GREEN+"["+cmd+"]"+ENDC)
         typ, dat = getattr(M, cmd)(*args)
         
         if typ == 'NO': 
@@ -62,7 +62,7 @@ if __name__ == '__main__':
 
         return dat
 
-    M = imaplib.IMAP4_SSL(host)
+    M = imaplib.IMAP4_SSL('imap-mail.outlook.com') # We don't care about the domain name as the traffic is redirected to the proxy
 
     for cmd,args in test_seq1:
         run(cmd, args)

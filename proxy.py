@@ -1,5 +1,7 @@
 import sys
-import socket, ssl, imaplib
+import socket
+import ssl
+import imaplib
 import re
 import base64
 import threading
@@ -15,9 +17,9 @@ capabilities = (
     'IMAP4',
     'IMAP4rev1',
     'AUTH=PLAIN',
-    #'AUTH=XOAUTH2', # TODO
+#    'AUTH=XOAUTH2', # TODO
     'SASL-IR',
-    #'IDLE',
+#    'IDLE',
     'UIDPLUS',
     'MOVE',
     'ID',
@@ -26,6 +28,14 @@ capabilities = (
     'NAMESPACE',
     'LITERAL'
     )
+
+# Authorized email addresses with hostname
+email_hostname = {
+    'hotmail': 'imap-mail.outlook.com',
+    'outlook': 'imap-mail.outlook.com',
+    'yahoo': 'imap.mail.yahoo.com'
+}
+
 
 def process(conn_client):
     def get_attr(request):
@@ -40,6 +50,7 @@ def process(conn_client):
 
         def get_login(request, auth_type):
             #
+            log(INFO+"Input login is "+str(request))
             if auth_type == "LOGIN":
                 username = get_attr(request)[2]
                 password = get_attr(request)[3]
@@ -58,6 +69,7 @@ def process(conn_client):
             if password.startswith('"') and password.endswith('"'):
                 password = password[1:-1]
 
+            log(INFO+"Output login is "+str(username)+" / "+str(password))
             return username, password
 
         # Start service
@@ -68,6 +80,10 @@ def process(conn_client):
         while True: 
             request = conn_client.recv()
             log(RECV_CL + str(request))
+
+            if not get_attr(request):
+                # Not a login procedure
+                return
 
             tag = get_attr(request)[0]
             command = get_attr(request)[1].upper()
@@ -92,13 +108,19 @@ def process(conn_client):
                 log(RED+ERROR+'Unknown command from request '+str(request)+ENDC)
                 return
 
-    def connect_to_server(username, password, hostname):
-        connection = imaplib.IMAP4_SSL(hostname)
-        connection.login(username, password)
+    def connect_to_server(username, password):
+        domain = username.split('@')[1].split('.')[0]
+        hostname = email_hostname.get(domain, None)
 
-        log(INFO+'Logged in')
+        if hostname:
+            connection = imaplib.IMAP4_SSL(hostname)
+            connection.login(username, password)
 
-        return connection
+            log(INFO+'Logged in')
+            return connection
+        else:
+            log(RED+ERROR+'Unknown domain')
+            return
 
     def serve(conn_client, conn_server):
         def build_request(list_attr):
@@ -106,7 +128,7 @@ def process(conn_client):
             return request.encode() +CRLF
 
         def handle_multiple_requests(request):
-            ''' Some requests could contain mutliple request '''
+            ''' Some requests might contain mutliple request '''
             attrs = get_attr(request)
             
             if attrs and bool(_digits.search(attrs[0])):
@@ -161,7 +183,7 @@ def process(conn_client):
 
             while tag_client:
                 # Listen response from the server
-                response_server = conn_server._get_line()+CRLF
+                response_server = conn_server.readline()
                 log(RECV_SR+str(response_server))
                 attr_response = get_attr(response_server)
 
@@ -212,13 +234,13 @@ def process(conn_client):
 
     # Get the credentials of the client
     username, password = connect_to_client()
-    hostname = 'imap-mail.outlook.com' # TODO: get the hostname
     
     if username and password:
         # Connect with the real server
-        conn_server = connect_to_server(username, password, hostname)
-        # Transmit data between client and server
-        serve(conn_client, conn_server)
+        conn_server = connect_to_server(username, password)
+        if conn_server:
+            # Transmit data between client and server
+            serve(conn_client, conn_server)
 
 
 def connection(ssock):
@@ -226,7 +248,7 @@ def connection(ssock):
         conn = ssl.wrap_socket(ssock, certfile=CERT, server_side=True)
         process(conn)
     except ssl.SSLError as e:
-        log(RED+ERROR+e+ENDC)
+        log(RED+ERROR+str(e)+ENDC)
     finally:
         if conn:
             conn.close()
