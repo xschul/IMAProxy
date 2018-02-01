@@ -12,7 +12,7 @@ IMAP Proxy to sanitize attachments.
 * Possibility to display IMAP payload
 * **[TODO]** Inspect emails, sanitize the malicious ones and keep a copy in a Quarantine folder
 * **[TODO]** Make it compatible with Gmail accounts (OAUTH2 authenticate)
-* **[TODO]** Proxy detects the hostname requested from the user's account
+* Proxy detects the hostname requested from the user's account (works with Hotmail, Outlook, Yahoo)
 
 ## Try it using Mininet
 

@@ -39,7 +39,7 @@ email_hostname = {
 
 def process(conn_client):
     def get_attr(request):
-        lst = request.decode().split()
+        lst = request.decode(encoding = 'ISO-8859-1').split()
         return ([s.replace('\r\n', '') for s in lst])
 
     def connect_to_client():
