@@ -38,24 +38,43 @@ email_hostname = {
 
 
 def process(conn_client):
+    """Process the connection with the client and with the server.
+    It first connect_to_client(), then it connect_to_server() and, 
+    finally, serve() the requests between the client and the server
+    """ 
+
     def get_attr(request):
+        """Returns a list of the words contained in the byte-encoded request argument
+        """
         lst = request.decode(encoding = 'ISO-8859-1').split()
         return ([s.replace('\r\n', '') for s in lst])
 
     def connect_to_client():
+        """Connect the proxy with the client.
+        The proxy first sends a "Service ready" to the client.
+        Then, it exchanges the Capabilities and the authentication attributes.
+        Finally, it gets the login of the client
+        """
 
         def ok_command(tag, command):
+            """Build the OK response to a specific command with the corresponding tag
+            """
             ok_command = tag + ' OK ' + command + ' completed.' + '\r\n'
             return ok_command.encode()
 
         def get_login(request, auth_type):
-            #
+            """ From a given request and authentication type,
+            retrieve the username and password of the client
+            """
+
             log(INFO+"Input login is "+str(request))
             if auth_type == "LOGIN":
+                # Login is not encoded
                 username = get_attr(request)[2]
                 password = get_attr(request)[3]
 
             elif auth_type == "PLAIN":
+                # Login is encoded in base64
                 decoded_req = base64.b64decode(request).split(b'\x00')
                 username = decoded_req[1].decode()
                 password = decoded_req[2].decode()
@@ -63,9 +82,9 @@ def process(conn_client):
             elif auth_type == "XOAUTH2":
                 pass # TODO
 
+            # Remove the quotation mark
             if username.startswith('"') and username.endswith('"'):
                 username = username[1:-1]
-
             if password.startswith('"') and password.endswith('"'):
                 password = password[1:-1]
 
@@ -109,6 +128,8 @@ def process(conn_client):
                 return
 
     def connect_to_server(username, password):
+        """Connect the proxy with the server
+        """
         domain = username.split('@')[1].split('.')[0]
         hostname = email_hostname.get(domain, None)
 
@@ -123,12 +144,18 @@ def process(conn_client):
             return
 
     def serve(conn_client, conn_server):
+        """Get the request from the client/server and transmit it to the server/client
+        """
         def build_request(list_attr):
+            """Convert a list to a request
+            """
             request = ' '.join(str(attr) for attr in list_attr)
             return request.encode() +CRLF
 
         def handle_multiple_requests(request):
-            ''' Some requests might contain mutliple request '''
+            """If the request in argument contains multiple requets,
+            it treats all the requests except the last one.
+            """
             attrs = get_attr(request)
             
             if attrs and bool(_digits.search(attrs[0])):
@@ -151,6 +178,8 @@ def process(conn_client):
             return request
 
         def convert_request(request, tag):
+            """Replace the tag of the request by the tag in argument
+            """
             attrs = get_attr(request)
 
             if not attrs:
@@ -169,6 +198,8 @@ def process(conn_client):
             return converted_request, received_tag
 
         def transmit(request_client):
+            """Transmit the request of the client to the server
+            """
             request_client = handle_multiple_requests(request_client)
             log(RECV_CL+str(request_client))
             tag_server = conn_server._new_tag().decode()
@@ -177,12 +208,14 @@ def process(conn_client):
                 global last_tag_client
                 last_tag_client = tag_client
 
+            writing_mode = False
 
             conn_server.send(request_server)
             log(SEND_SR+str(request_server))
 
             while tag_client:
-                # Listen response from the server
+                """ Listen response(s) from the server
+                """
                 response_server = conn_server.readline()
                 log(RECV_SR+str(response_server))
                 attr_response = get_attr(response_server)
@@ -209,6 +242,10 @@ def process(conn_client):
 
                 if tag == tag_server or tag_client == 'EMPTY' and tag != '*':
                     # Last response from server
+                    writing_mode = False
+                    f = open('email.eml', 'a') # to remove
+                    f.write("---------------") # to remove
+
                     response_server, server_tag = convert_request(response_server, last_tag_client)
                     conn_client.send(response_server)
                     log(SEND_CL+"Last: "+str(response_server))
@@ -216,11 +253,25 @@ def process(conn_client):
 
                 else:
                     # Response from server incoming
+
+                    if writing_mode:
+                        # Write the email in local in order to sanitize it
+                        f = open('email.eml', 'a')
+                        f.write(response_server.decode())
+
+                    else:
+                        if ('FETCH' in attr_response or 'fetch' in attr_response) and 'BODY[]' in attr_response: #TODO: check every possibility to check email
+                            writing_mode = True
+                            print("---------------")
+                            print(attr_response)
+
+                    # TODO: should be in the 'else', need to sanitize email before sending to user
                     conn_client.send(response_server)
-                    log(SEND_CL+"Server seq: "+str(response_server))
+#                    log(SEND_CL+"Server seq: "+str(response_server))
 
         def wait_request():
-            # Listen requests from the user
+            """Wait for a request from the client
+            """
             while True:
                 request_client = conn_client.recv()
                 
@@ -244,6 +295,8 @@ def process(conn_client):
 
 
 def connection(ssock):
+    """Make the connection with the client
+    """
     try:
         conn = ssl.wrap_socket(ssock, certfile=CERT, server_side=True)
         process(conn)
@@ -254,6 +307,8 @@ def connection(ssock):
             conn.close()
 
 def listening():
+    """Listen on a socket for a connection with a client
+    """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((HOST, PORT))
 
