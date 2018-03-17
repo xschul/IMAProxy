@@ -5,6 +5,7 @@ import imaplib
 import re
 import base64
 import threading
+import proxy_sanitizer
 
 # Global variables
 HOST, PORT, CERT = '', 993, 'cert.pem'
@@ -208,8 +209,10 @@ def process(conn_client):
                 global last_tag_client
                 last_tag_client = tag_client
 
-            writing_mode = False
+            # Sanitizer (TODO: improve conditionnal to cover all cases)
+            proxy_sanitizer.process_request_client(get_attr(request_client), conn_server)
 
+            # Send the request from the client to the server
             conn_server.send(request_server)
             log(SEND_SR+str(request_server))
 
@@ -242,10 +245,6 @@ def process(conn_client):
 
                 if tag == tag_server or tag_client == 'EMPTY' and tag != '*':
                     # Last response from server
-                    writing_mode = False
-                    f = open('email.eml', 'a') # to remove
-                    f.write("---------------") # to remove
-
                     response_server, server_tag = convert_request(response_server, last_tag_client)
                     conn_client.send(response_server)
                     log(SEND_CL+"Last: "+str(response_server))
@@ -253,19 +252,6 @@ def process(conn_client):
 
                 else:
                     # Response from server incoming
-
-                    if writing_mode:
-                        # Write the email in local in order to sanitize it
-                        f = open('email.eml', 'a')
-                        f.write(response_server.decode())
-
-                    else:
-                        if ('FETCH' in attr_response or 'fetch' in attr_response) and 'BODY[]' in attr_response: #TODO: check every possibility to check email
-                            writing_mode = True
-                            print("---------------")
-                            print(attr_response)
-
-                    # TODO: should be in the 'else', need to sanitize email before sending to user
                     conn_client.send(response_server)
 #                    log(SEND_CL+"Server seq: "+str(response_server))
 
@@ -360,5 +346,5 @@ def log(s):
 ''' END VERBOSE '''
 
 if __name__ == '__main__':
-    verbose = True
+    verbose = False
     listening()
