@@ -8,13 +8,15 @@ import threading
 import proxy_sanitizer
 
 # Global variables
-HOST, PORT, CERT = '', 993, 'cert.pem'
+IMAP4_PORT, CERT = 993, 'cert.pem'
 CRLF = b'\r\n'
-_digits = re.compile(r'\d+')
-last_tag_client = None
+_request = re.compile(r'\A[A-Z]*[0-9]+\s[a-zA-Z]\s*')
+_tag = re.compile(r'[A-Z]*[0-9]+\s*')
+_alpha = re.compile(r'[A-Z]*')
+_digit = re.compile(r'[0-9]+')
 
 # Capabilities of the proxy
-capabilities = ( 
+capability_flags = ( 
     'IMAP4',
     'IMAP4rev1',
     'AUTH=PLAIN',
@@ -37,314 +39,308 @@ email_hostname = {
     'yahoo': 'imap.mail.yahoo.com'
 }
 
+class IMAP_Proxy:
 
-def process(conn_client):
-    """Process the connection with the client and with the server.
-    It first connect_to_client(), then it connect_to_server() and, 
-    finally, serve() the requests between the client and the server
-    """ 
+    def __init__(self, host='', port=IMAP4_PORT, verbose = False):
+        self.max_client = 5
+        self.verbose = verbose
 
-    def get_attr(request):
-        """Returns a list of the words contained in the byte-encoded request argument
-        """
-        lst = request.decode(encoding = 'ISO-8859-1').split()
-        return ([s.replace('\r\n', '') for s in lst])
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.bind((host, port))
+        self.sock.listen(self.max_client)
+        self.listen(host, port)
 
-    def connect_to_client():
-        """Connect the proxy with the client.
-        The proxy first sends a "Service ready" to the client.
-        Then, it exchanges the Capabilities and the authentication attributes.
-        Finally, it gets the login of the client
-        """
 
-        def ok_command(tag, command):
-            """Build the OK response to a specific command with the corresponding tag
+    def listen(self, host, port):
+        def new_client(ssock):
+            IMAP_Client(ssock, self.verbose)
+
+        while True:
+            try:
+                ssock, addr = self.sock.accept()
+                threading.Thread(target = new_client, args = (ssock,)).start()
+
+            except KeyboardInterrupt:
+                break
+
+        if self.sock:
+            self.sock.close()
+
+class IMAP_Client:
+
+    def __init__(self, ssock, verbose = False):
+        self.verbose = verbose
+        self.state = 'LOGOUT'
+
+        try:
+            self.conn_client = ssl.wrap_socket(ssock, certfile=CERT, server_side=True) # TODO: remove cert
+        except ssl.SSLError as e:
+            log_error(e)
+            self.close()
+
+        if self.auth_server(self.auth_client()):
+            log_info("Link between server and client done")
+            self.serve()
+
+        self.close()
+
+    def auth_client(self):
+        
+        def ok(tag, command):
             """
-            ok_command = tag + ' OK ' + command + ' completed.' + '\r\n'
-            return ok_command.encode()
-
-        def get_login(request, auth_type):
-            """ From a given request and authentication type,
-            retrieve the username and password of the client
+                Build the OK response to a specific command with the corresponding tag
             """
+            return tag + ' OK ' + command + ' completed.'
 
-            log(INFO+"Input login is "+str(request))
+        def get_credentials(response, auth_type):
+            
             if auth_type == "LOGIN":
-                # Login is not encoded
-                username = get_attr(request)[2]
-                password = get_attr(request)[3]
+                flags = response[0][2]
+                username = flags[0]
+                password = flags[1]
 
             elif auth_type == "PLAIN":
-                # Login is encoded in base64
-                decoded_req = base64.b64decode(request).split(b'\x00')
-                username = decoded_req[1].decode()
-                password = decoded_req[2].decode()
+                print("Plain: ", response)
+                dec_response = base64.b64decode(response[1]).split(b'\x00')
+                username = dec_response[1].decode()
+                password = dec_response[2].decode()
 
             elif auth_type == "XOAUTH2":
                 pass # TODO
 
-            # Remove the quotation mark
             if username.startswith('"') and username.endswith('"'):
                 username = username[1:-1]
+
             if password.startswith('"') and password.endswith('"'):
                 password = password[1:-1]
 
-            log(INFO+"Output login is "+str(username)+" / "+str(password))
-            return username, password
+            return (username, password)
 
-        # Start service
-        service_ready = ('* OK Service Ready.').encode() + CRLF
-        conn_client.sendall(service_ready)
-        log(SEND_CL + str(service_ready))
+        self.send_to_client('* OK Service Ready.')
 
-        while True: 
-            request = conn_client.recv()
-            log(RECV_CL + str(request))
+        while True:
+            response = self.recv_from_client()
 
-            if not get_attr(request):
-                # Not a login procedure
-                return
+            if not response[0]:
+                # Not a correct request
+                log_error('Incorrect request: ' + str(response[1]))
+                return None
 
-            tag = get_attr(request)[0]
-            command = get_attr(request)[1].upper()
+            client_tag = response[0][0]
+            client_command = response[0][1].upper()
 
-            if command == 'CAPABILITY':
-                capability_command = '* CAPABILITY ' + ' '.join(cap for cap in capabilities) + ' +' 
-                conn_client.sendall(capability_command.encode()+ CRLF)
-                conn_client.sendall(ok_command(tag, command))
+            print('response: ', response, " + ", client_command)
 
-            elif command == 'AUTHENTICATE':
-                auth_type = get_attr(request)[2]
-                conn_client.sendall(b'+\r\n')
-                request = conn_client.recv()
-                conn_client.sendall(ok_command(tag, command))
-                return get_login(request, auth_type)
+            if client_command == 'CAPABILITY':
+                # Get the tag (without the digits) of the client
+                self.alpha_tag = re.search(_alpha, client_tag).group(0)
+                print("Alpha =     ", self.alpha_tag)
 
-            elif command == 'LOGIN':
-                conn_client.sendall(ok_command(tag, command))
-                return get_login(request, command)
+                capability_command = '* CAPABILITY ' + ' '.join(cap for cap in capability_flags) + ' +' 
+                print("cap: ", capability_command)
+                self.send_to_client(capability_command)
+                self.send_to_client(ok(client_tag, client_command))
+
+            elif client_command == 'AUTHENTICATE':
+                auth_type = response[0][2][0]
+                flags = response[0][2]
+                self.send_to_client('+')
+                response = self.recv_from_client()
+                self.send_to_client(ok(client_tag, client_command))
+                return get_credentials(response, auth_type)
+
+            elif client_command == 'LOGIN':
+                auth_type = client_command
+                flags = response[0][2]
+                self.send_to_client(ok(client_tag, client_command))
+                return get_credentials(response, auth_type)
 
             else:
-                log(RED+ERROR+'Unknown command from request '+str(request)+ENDC)
-                return
+                log_error('Unknown request: ' + str(response[1]))
+                return None
 
-    def connect_to_server(username, password):
-        """Connect the proxy with the server
-        """
-        domain = username.split('@')[1].split('.')[0]
-        hostname = email_hostname.get(domain, None)
+    def auth_server(self, credentials):
+        if not credentials:
+            return False
 
-        if hostname:
-            connection = imaplib.IMAP4_SSL(hostname)
-            connection.login(username, password)
+        username = credentials[0]
+        password = credentials[1]
+        domain = username.split('@')[1].split('.')[0] # TODO: Should work with multiple dots after '@'
+        hostname = email_hostname[domain]
+        print(username, password, domain, hostname)
 
-            log(INFO+'Logged in')
-            return connection
-        else:
-            log(RED+ERROR+'Unknown domain')
-            return
 
-    def serve(conn_client, conn_server):
-        """Get the request from the client/server and transmit it to the server/client
-        """
-        def build_request(list_attr):
-            """Convert a list to a request
-            """
-            request = ' '.join(str(attr) for attr in list_attr)
-            return request.encode() +CRLF
+        self.conn_server = imaplib.IMAP4_SSL(hostname)
+        self.conn_server.login(username, password)
 
-        def handle_multiple_requests(request):
-            """If the request in argument contains multiple requets,
-            it treats all the requests except the last one.
-            """
-            attrs = get_attr(request)
-            
-            if attrs and bool(_digits.search(attrs[0])):
-                # Get the first tag of the request
-                tag = attrs[0]
-                num_tag = re.findall(r'\d+', tag)[0]
-                prefix_tag = tag.replace(num_tag, '')
+        log_info('Logged in')
 
-                next_tag = prefix_tag + str(int(num_tag)+1)
-                if next_tag in attrs:
-                    # Two requests spotted - Send the first request
-                    first_request = convert_request(build_request(attrs[0:attrs.index(next_tag)]), tag)[0]
-                    log(SEND_SR+str(first_request))
-                    conn_server.send(first_request)
-                    # Handle the second request
-                    last_request = build_request(attrs[attrs.index(next_tag):])
-                    return handle_multiple_requests(last_request)
+        return True
 
-            # No multiple requests
+    def serve(self):
+        # Listen requests from the client
+        while True:
+            client_request = self.recv_from_client()
+            client_request = self.handle_multiple_requests(client_request)
+
+            server_tag = self.conn_server._new_tag().decode()
+            self.send_to_server(self.convert_request(client_request, server_tag)[1])
+
+            while client_request[0]:
+                server_response = self.recv_from_server()
+
+                print(server_response)
+
+                # If the request contains no tag and no command
+                if not server_response[0]:
+                    self.send_to_client(server_response[1])
+
+                    if server_response[1][0] and server_response[1][0] == '+':
+                        # Request from client incoming
+                        print("REQUEST FROM CLIENT INCOMING")
+                        break
+
+                    else:
+                        # Response from server incoming
+                        print("RESPONSE FROM SERVER INCOMING")
+
+                # The request contains a tag and a command
+                else:
+                    print("COMMAND --")
+
+                    server_tag = server_response[0][0]
+                    server_command = server_response[0][1]
+                    server_flags = server_response[0][2]
+
+                    if server_command == 'BYE':
+                        # Client stopped connection
+                        self.send_to_client(server_response[1])
+                        return
+
+                    elif server_command == 'BAD':
+                        # Bad command
+                        self.send_to_client(server_response[1])
+                        log_error("Bad command: " + client_request[1])
+
+                    else:
+                        # Last response from server
+                        print("LAST RESPONSE FROM SERVER")
+                        converted_server_response = self.convert_request(server_response, self.last_tag)
+                        self.send_to_client(converted_server_response[1])
+                        break
+
+
+    def convert_request(self, request, new_tag):
+        
+        if request[0]:
+            tag = request[0][0]
+            command = request[0][1]
+            flags = request[0][2]
+            str_request = request[1]
+
+            new_str_request = self.list_to_str([new_tag, command] + flags)
+
+            new_request = ((new_tag, request[0][1], request[0][2]), new_str_request)
+            print("newrequest: ", new_request)
+            return new_request
+
+        else: #necessary ?
             return request
 
-        def convert_request(request, tag):
-            """Replace the tag of the request by the tag in argument
-            """
-            attrs = get_attr(request)
+    def handle_multiple_requests(self, client_request):
+        ''' Some requests could contain mutliple request '''
+        client_tag = client_request[0][0]
+        flags = client_request[0][2]
+        curr_num_tag = re.search(_digit, client_tag).group(0)
 
-            if not attrs:
-                # Empty request --> end of a client sending sequence
-                return request, 'EMPTY'
+        next_num_tag = int(curr_num_tag) + 1
+        next_client_tag = self.alpha_tag + str(next_num_tag)
+        print("Next tag = ", next_client_tag)
 
-            received_tag = attrs[0]
+        if next_client_tag in flags:
+            print("TWO REQUESTS")
+            str_request = client_request[1]
+            list_data = str_request.split(" ")
+            index_next_request = list_data.find(next_client_tag)
+            first_request = list_data[:index_next_request-1]
+            second_request= list_data[index_next_request:]
 
-            if not bool(_digits.search(received_tag)):
-                # The request contains not tag --> client sending sequence
-                return request, None
+            self.send_to_server(self.list_to_str(first_request))
 
-            attrs[0] = tag
-            converted_request = build_request(attrs)
+            new_client_tag = second_request[0]
+            new_client_command = second_request[1]
+            new_flags = second_request[2:]
+            new_str_request = self.list_to_str(second_request)
+            return self.handle_multiple_requests((new_client_tag, new_client_command, new_flags),new_str_request)
 
-            return converted_request, received_tag
+        return client_request
 
-        def transmit(request_client):
-            """Transmit the request of the client to the server
-            """
-            request_client = handle_multiple_requests(request_client)
-            log(RECV_CL+str(request_client))
-            tag_server = conn_server._new_tag().decode()
-            request_server, tag_client = convert_request(request_client, tag_server)
-            if tag_client and tag_client != 'EMPTY':
-                global last_tag_client
-                last_tag_client = tag_client
+    def list_to_str(self, list_data):
+        return ' '.join(str(attr) for attr in list_data)
 
-            # Sanitizer (TODO: improve conditionnal to cover all cases)
-            proxy_sanitizer.process_request_client(get_attr(request_client), conn_server)
+    def send_to_client(self, str_data):
+        b_data = str_data.encode() + CRLF
+        self.conn_client.sendall(b_data)
 
-            # Send the request from the client to the server
-            conn_server.send(request_server)
-            log(SEND_SR+str(request_server))
+        if self.verbose: 
+            print("[<--]: ", str_data)
 
-            while tag_client:
-                """ Listen response(s) from the server
-                """
-                response_server = conn_server.readline()
-                log(RECV_SR+str(response_server))
-                attr_response = get_attr(response_server)
+    def recv_from_client(self):
+        str_response = self.conn_client.recv().decode().replace('\r\n', '')
 
-                tag = None if len(attr_response) < 1 else attr_response[0]
-                command = None if len(attr_response) <= 1 else attr_response[1]
+        if self.verbose: 
+            print("[-->]: ", str_response)
 
-                if command == 'BYE':
-                    # Client stopped connection
-                    conn_client.send(response_server)
-                    log(SEND_CL+str(response_server))
-                    return
+        # 2 cases: with ou without tag/command
+        if bool(_request.search(str_response)):
+            args_response = str_response.split(' ')
+            tag = args_response[0]
+            self.last_tag = tag
+            command = args_response[1]
+            flags = args_response[2:]
 
-                if command == 'BAD':
-                    # Bad command
-                    conn_client.send(response_server)
-                    print(RED+ERROR+"Bad command: "+str(request_client)+ENDC)
+            return ((tag, command, flags), str_response)
 
-                if tag == '+':
-                    # Request from client incoming
-                    conn_client.send(response_server)
-                    log(SEND_CL+"Client seq: "+str(response_server))
-                    break
+        return (None, str_response)
 
-                if tag == tag_server or tag_client == 'EMPTY' and tag != '*':
-                    # Last response from server
-                    response_server, server_tag = convert_request(response_server, last_tag_client)
-                    conn_client.send(response_server)
-                    log(SEND_CL+"Last: "+str(response_server))
-                    break
+    def send_to_server(self, str_data):
+        b_data = str_data.encode() + CRLF
+        self.conn_server.send(b_data)
 
-                else:
-                    # Response from server incoming
-                    conn_client.send(response_server)
-#                    log(SEND_CL+"Server seq: "+str(response_server))
+        if self.verbose: 
+            print("  [-->]: ", str_data)
 
-        def wait_request():
-            """Wait for a request from the client
-            """
-            while True:
-                request_client = conn_client.recv()
-                
-                if request_client:
-                    transmit(request_client)
-                            
-                else:
-                    break
+    def recv_from_server(self):
+        str_response = str(self.conn_server._get_line().decode()).replace('\r\n', '')
 
-        wait_request()
+        if self.verbose: 
+            print("  [<--]: ", str_response)
 
-    # Get the credentials of the client
-    username, password = connect_to_client()
-    
-    if username and password:
-        # Connect with the real server
-        conn_server = connect_to_server(username, password)
-        if conn_server:
-            # Transmit data between client and server
-            serve(conn_client, conn_server)
+        # 2 cases : Request with a tag and request without tag
+        if bool(_request.search(str_response)):
+            print("Good response")
+            args_response = str_response.split(' ')
+            tag = args_response[0]
+            command = args_response[1]
+            flags = args_response[2:]
+
+            return ((tag, command, flags), str_response)
+
+        print("Not a command")
+        return (None, str_response)
+
+    def close(self):
+        if self.conn_client:
+            self.conn_client.close()
 
 
-def connection(ssock):
-    """Make the connection with the client
-    """
-    try:
-        conn = ssl.wrap_socket(ssock, certfile=CERT, server_side=True)
-        process(conn)
-    except ssl.SSLError as e:
-        log(RED+ERROR+str(e)+ENDC)
-    finally:
-        if conn:
-            conn.close()
+def log_info(s):
+    print("[INFO]: ", s)
 
-def listening():
-    """Listen on a socket for a connection with a client
-    """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind((HOST, PORT))
-
-    sock.listen(5)
-
-    while True:
-        try:
-            conn = None
-            ssock, addr = sock.accept()
-
-            print(GREENBOLD+INFO+'New connection from '+str(addr[0])+':'+str(addr[1])+ENDC)
-            threading.Thread(target = connection, args = (ssock,)).start()
-            print(GREENBOLD+INFO+'No more data from '+str(addr[0])+':'+str(addr[1])+ENDC)
-
-        except KeyboardInterrupt:
-            if sock:
-                sock.close()
-
-            print(GREENBOLD+INFO+"Socket closed"+ENDC)
-            break
-
-        '''except Exception as e:
-            sock.close()
-            print(RED, ERROR, e, ENDC)
-            break'''
-
-    if sock:
-        sock.close()
-
-''' VERBOSE '''
-# Verbose variables
-RECV_CL = "[-->]: "
-SEND_CL = "[<--]: "
-RECV_SR = "  [<--]: "
-SEND_SR = "  [-->]: "
-INFO = "[INFO]: "
-ERROR= "[ERROR]: "
-verbose = False
-
-# Colors
-RED = '\033[91m'
-GREENBOLD = '\033[92m\033[1m'
-ENDC = '\033[0m'
-
-# Verbose method
-def log(s):
-    if verbose:
-        print(s.replace('\r\n', ''))
-''' END VERBOSE '''
+def log_error(s):
+    RED = '\033[91m'
+    ENDC = '\033[0m'
+    print(RED, "[ERROR]: ", s, ENDC)
 
 if __name__ == '__main__':
-    verbose = False
-    listening()
+    IMAP_Proxy(verbose = True)
