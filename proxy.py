@@ -80,6 +80,7 @@ class IMAP_Client:
 
         if self.auth_server(self.auth_client()):
             log_info("Link between server and client done")
+            self.state = 'LOGIN'
             self.serve()
 
         self.close()
@@ -100,7 +101,6 @@ class IMAP_Client:
                 password = flags[1]
 
             elif auth_type == "PLAIN":
-                print("Plain: ", response)
                 dec_response = base64.b64decode(response[1]).split(b'\x00')
                 username = dec_response[1].decode()
                 password = dec_response[2].decode()
@@ -129,15 +129,11 @@ class IMAP_Client:
             client_tag = response[0][0]
             client_command = response[0][1].upper()
 
-            print('response: ', response, " + ", client_command)
-
             if client_command == 'CAPABILITY':
                 # Get the tag (without the digits) of the client
                 self.alpha_tag = re.search(_alpha, client_tag).group(0)
-                print("Alpha =     ", self.alpha_tag)
 
                 capability_command = '* CAPABILITY ' + ' '.join(cap for cap in capability_flags) + ' +' 
-                print("cap: ", capability_command)
                 self.send_to_client(capability_command)
                 self.send_to_client(ok(client_tag, client_command))
 
@@ -167,8 +163,6 @@ class IMAP_Client:
         password = credentials[1]
         domain = username.split('@')[1].split('.')[0] # TODO: Should work with multiple dots after '@'
         hostname = email_hostname[domain]
-        print(username, password, domain, hostname)
-
 
         self.conn_server = imaplib.IMAP4_SSL(hostname)
         self.conn_server.login(username, password)
@@ -179,59 +173,21 @@ class IMAP_Client:
 
     def serve(self):
         # Listen requests from the client
-        while True:
+        while self.state == 'LOGIN':
             client_request = self.recv_from_client()
             client_request = self.handle_multiple_requests(client_request)
 
             server_tag = self.conn_server._new_tag().decode()
-            self.send_to_server(self.convert_request(client_request, server_tag)[1])
+            self.send_to_server(self.swap_tag(client_request, server_tag)[1])
 
-            while client_request[0]:
+            # Listen responses from the server
+            while self.listen_server:
                 server_response = self.recv_from_server()
-
-                print(server_response)
-
-                # If the request contains no tag and no command
-                if not server_response[0]:
-                    self.send_to_client(server_response[1])
-
-                    if server_response[1][0] and server_response[1][0] == '+':
-                        # Request from client incoming
-                        print("REQUEST FROM CLIENT INCOMING")
-                        break
-
-                    else:
-                        # Response from server incoming
-                        print("RESPONSE FROM SERVER INCOMING")
-
-                # The request contains a tag and a command
-                else:
-                    print("COMMAND --")
-
-                    server_tag = server_response[0][0]
-                    server_command = server_response[0][1]
-                    server_flags = server_response[0][2]
-
-                    if server_command == 'BYE':
-                        # Client stopped connection
-                        self.send_to_client(server_response[1])
-                        return
-
-                    elif server_command == 'BAD':
-                        # Bad command
-                        self.send_to_client(server_response[1])
-                        log_error("Bad command: " + client_request[1])
-
-                    else:
-                        # Last response from server
-                        print("LAST RESPONSE FROM SERVER")
-                        converted_server_response = self.convert_request(server_response, self.last_tag)
-                        self.send_to_client(converted_server_response[1])
-                        break
-
-
-    def convert_request(self, request, new_tag):
+                self.send_to_client(self.swap_tag(server_response, self.last_tag)[1])
+                    
+    def swap_tag(self, request, new_tag):
         
+        # If there is a tag and a command
         if request[0]:
             tag = request[0][0]
             command = request[0][1]
@@ -241,24 +197,26 @@ class IMAP_Client:
             new_str_request = self.list_to_str([new_tag, command] + flags)
 
             new_request = ((new_tag, request[0][1], request[0][2]), new_str_request)
-            print("newrequest: ", new_request)
             return new_request
 
-        else: #necessary ?
-            return request
+        # No tag or command, no need to convert
+        return request
 
     def handle_multiple_requests(self, client_request):
-        ''' Some requests could contain mutliple request '''
+        ''' Some requests contain mutliple requests '''
+
+        if not client_request[0]:
+            # Not a request
+            return client_request
+
         client_tag = client_request[0][0]
         flags = client_request[0][2]
         curr_num_tag = re.search(_digit, client_tag).group(0)
 
         next_num_tag = int(curr_num_tag) + 1
         next_client_tag = self.alpha_tag + str(next_num_tag)
-        print("Next tag = ", next_client_tag)
 
         if next_client_tag in flags:
-            print("TWO REQUESTS")
             str_request = client_request[1]
             list_data = str_request.split(" ")
             index_next_request = list_data.find(next_client_tag)
@@ -280,16 +238,17 @@ class IMAP_Client:
 
     def send_to_client(self, str_data):
         b_data = str_data.encode() + CRLF
-        self.conn_client.sendall(b_data)
+        self.conn_client.send(b_data)
 
         if self.verbose: 
-            print("[<--]: ", str_data)
+            print("[<--]: ", b_data)
 
     def recv_from_client(self):
-        str_response = self.conn_client.recv().decode().replace('\r\n', '')
+        b_response = self.conn_client.recv()
+        str_response = b_response.decode()[:-2] # decode and remove CRLF
 
         if self.verbose: 
-            print("[-->]: ", str_response)
+            print("[-->]: ", b_response)
 
         # 2 cases: with ou without tag/command
         if bool(_request.search(str_response)):
@@ -299,7 +258,15 @@ class IMAP_Client:
             command = args_response[1]
             flags = args_response[2:]
 
+            self.listen_server = True
+
+            if command == 'LOGOUT':
+                self.state = 'LOGOUT'
+
             return ((tag, command, flags), str_response)
+
+        if not str_response:
+            self.listen_server = True
 
         return (None, str_response)
 
@@ -308,25 +275,28 @@ class IMAP_Client:
         self.conn_server.send(b_data)
 
         if self.verbose: 
-            print("  [-->]: ", str_data)
+            print("  [-->]: ", b_data)
 
     def recv_from_server(self):
-        str_response = str(self.conn_server._get_line().decode()).replace('\r\n', '')
+        b_response = self.conn_server._get_line() + CRLF
+        str_response = b_response.decode()[:-2]
 
         if self.verbose: 
-            print("  [<--]: ", str_response)
+            print("  [<--]: ", b_response)
 
         # 2 cases : Request with a tag and request without tag
         if bool(_request.search(str_response)):
-            print("Good response")
             args_response = str_response.split(' ')
             tag = args_response[0]
             command = args_response[1]
             flags = args_response[2:]
+            self.listen_server = False
 
             return ((tag, command, flags), str_response)
 
-        print("Not a command")
+        if str_response.startswith('+'):
+            self.listen_server = False
+
         return (None, str_response)
 
     def close(self):
