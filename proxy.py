@@ -62,6 +62,8 @@ class IMAP_Proxy:
 
             except KeyboardInterrupt:
                 break
+            except Exception as e:
+                log_error(str(e))
 
         if self.sock:
             self.sock.close()
@@ -162,10 +164,22 @@ class IMAP_Client:
         username = credentials[0]
         password = credentials[1]
         domain = username.split('@')[1].split('.')[0] # TODO: Should work with multiple dots after '@'
-        hostname = email_hostname[domain]
+
+        try:
+            hostname = email_hostname[domain]
+        except KeyError:
+            log_error('Unknown hostname')
+            return False
+
+        print("connect with ", username, password)
 
         self.conn_server = imaplib.IMAP4_SSL(hostname)
-        self.conn_server.login(username, password)
+
+        try:
+            self.conn_server.login(username, password)
+        except Exception:
+            log_error('Invalid credentials')
+            return False
 
         log_info('Logged in')
 
@@ -238,26 +252,27 @@ class IMAP_Client:
 
     def send_to_client(self, str_data):
         b_data = str_data.encode() + CRLF
-        self.conn_client.send(b_data)
+
+        try:
+            self.conn_client.send(b_data)
+        except (BrokenPipeError, ConnectionResetError):
+            log_info('Connection reset by peer')
+            self.state = 'LOGOUT'
 
         if self.verbose: 
             print("[<--]: ", b_data)
 
     def recv_from_client(self):
         b_response = self.conn_client.recv()
-        str_response = b_response.decode()[:-2] # decode and remove CRLF
+        str_response = b_response.decode('utf-8')[:-2] # decode and remove CRLF
 
         if self.verbose: 
             print("[-->]: ", b_response)
 
         # 2 cases: with ou without tag/command
         if bool(_request.search(str_response)):
-            args_response = str_response.split(' ')
-            tag = args_response[0]
+            (tag, command, flags) = self.get_tag_command_flags(str_response)
             self.last_tag = tag
-            command = args_response[1]
-            flags = args_response[2:]
-
             self.listen_server = True
 
             if command == 'LOGOUT':
@@ -272,32 +287,41 @@ class IMAP_Client:
 
     def send_to_server(self, str_data):
         b_data = str_data.encode() + CRLF
-        self.conn_server.send(b_data)
+
+        try:
+            self.conn_server.send(b_data)
+        except (BrokenPipeError, ConnectionResetError):
+            log_info('Connection reset by peer')
+            self.state = 'LOGOUT'
 
         if self.verbose: 
             print("  [-->]: ", b_data)
 
     def recv_from_server(self):
-        b_response = self.conn_server._get_line() + CRLF
-        str_response = b_response.decode()[:-2]
+        b_response = self.conn_server._get_line()
+        
+        str_response = b_response.decode('utf-8', 'replace')    
 
         if self.verbose: 
             print("  [<--]: ", b_response)
 
         # 2 cases : Request with a tag and request without tag
         if bool(_request.search(str_response)):
-            args_response = str_response.split(' ')
-            tag = args_response[0]
-            command = args_response[1]
-            flags = args_response[2:]
             self.listen_server = False
 
-            return ((tag, command, flags), str_response)
+            return (self.get_tag_command_flags(str_response), str_response)
 
-        if str_response.startswith('+'):
+        if str_response.startswith('+ '): # TODO: could generate problem (if the request begins with +)
             self.listen_server = False
 
         return (None, str_response)
+
+    def get_tag_command_flags(self, str_request):
+        args_response = str_request.split(' ')
+        tag = args_response[0]
+        command = args_response[1]
+        flags = args_response[2:]
+        return (tag, command, flags)
 
     def close(self):
         if self.conn_client:
