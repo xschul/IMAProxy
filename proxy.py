@@ -5,7 +5,7 @@ import imaplib
 import re
 import base64
 import threading
-import proxy_sanitizer
+import email_sanitizer
 
 # Global variables
 IMAP4_PORT, CERT = 993, 'cert.pem'
@@ -191,6 +191,8 @@ class IMAP_Client:
             client_request = self.recv_from_client()
             client_request = self.handle_multiple_requests(client_request)
 
+            email_sanitizer.process(client_request, self.conn_server)
+
             server_tag = self.conn_server._new_tag().decode()
             self.send_to_server(self.swap_tag(client_request, server_tag)[1])
 
@@ -337,4 +339,4 @@ def log_error(s):
     print(RED, "[ERROR]: ", s, ENDC)
 
 if __name__ == '__main__':
-    IMAP_Proxy(verbose = True)
+    IMAP_Proxy(verbose = False)
