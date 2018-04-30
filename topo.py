@@ -27,17 +27,17 @@ class Router( Node ):
         super( Router, self).config( **params )
         # Enable forwarding on the router
         self.cmd( 'sysctl net.ipv4.ip_forward=1' )
-        self.cmd( 'iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE' )
+        self.cmd( 'iptables -t nat -A POSTROUTING -o enp0s3 -j MASQUERADE' )
 
         # Internet connectivity
-        Intf( 'eth0', node=self )
-        self.cmd( 'dhclient eth0' )
+        Intf( 'enp0s3', node=self )
+        self.cmd( 'dhclient enp0s3' )
 
         # Redirection to proxy (h2)
         self.cmd( 'iptables -t nat -A PREROUTING -p tcp --dport 993 -s 172.16.0.100 -j DNAT --to-destination 192.168.1.100:993' )
         # Redirection to proxy (h3)
         self.cmd( 'iptables -t nat -A PREROUTING -p tcp --dport 993 -s 152.16.0.100 -j DNAT --to-destination 192.168.1.100:993' )
-
+		
     def terminate( self ):
         self.cmd( 'sysctl net.ipv4.ip_forward=0' )
         # Flush iptables rules

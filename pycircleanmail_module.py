@@ -2,9 +2,11 @@ import email
 import re
 import imaplib
 import time
-import copy
 
-_fetchUID_request = re.compile(r'\A[A-Z]*[0-9]+\s(UID)\s(fetch)|(FETCH)\s[0-9]+')
+from io import BytesIO
+from kittengroomer_email import KittenGroomerMail
+
+_fetchUID_request = re.compile(r'\A[A-Z]*[0-9]+\s(UID)|(uid)\s(fetch)|(FETCH)\s[0-9]+')
 
 def process(request, conn_server):
     str_request = request[1]
@@ -17,7 +19,7 @@ def process(request, conn_server):
         flags = request[0][2][2:]
         str_flags = ' '.join(str(flag) for flag in flags)
 
-        print("uid_flag ", uid_flag, " flags ", str_flags)
+        print("IN SANITIZER MODULE: uid_flag ", uid_flag, " flags ", str_flags)
 
         # User wants to fetch an entire email ? TODO: check all possiblities
         if 'BODY.PEEK[]' in str_flags:
@@ -28,18 +30,24 @@ def sanitize(uid, flags, conn_server):
     conn_server.state = 'SELECTED'
     result, msg_data = conn_server.uid('fetch', uid, flags)
 
-    str_original_email = msg_data[0][1].decode('utf-8')
-    original_email = email.message_from_string(str_original_email)
-    
-    if not original_email.get('CIRCL-Sanitizer'):
-        
+    if not msg_data[0]: # Email no longer exists
+        return
 
-        # Original TODO: insert hashcode + note
-        original_email.add_header('CIRCL-Sanitizer', 'Original')
-        conn_server.append('Quarantine', '', imaplib.Time2Internaldate(time.time()), str(original_email).encode())
+    bmail = msg_data[0][1]
+    mail = email.message_from_string(bmail.decode('utf-8'))
+    if not mail.get('CIRCL-Sanitizer'):
+        print('Need to sanitize')
+        # Process email with the module
+        t = KittenGroomerMail(bmail, debug=True)
+        m = t.process_mail()
+        content = BytesIO(m.as_bytes())
+
+        # Original TODO: insert hashcode + note + correct date
+        mail.add_header('CIRCL-Sanitizer', 'Original')
+        conn_server.append('Quarantine', '', imaplib.Time2Internaldate(time.time()), str(mail).encode())
 
         # Sanitized
-        sanitized_email = email.message_from_string(str_original_email)
+        sanitized_email = email.message_from_string(content.getvalue().decode('utf-8'))
         sanitized_email.add_header('CIRCL-Sanitizer', 'Sanitized')
         conn_server.append('Inbox', '', imaplib.Time2Internaldate(time.time()), str(sanitized_email).encode())
 

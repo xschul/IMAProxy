@@ -5,7 +5,8 @@ import imaplib
 import re
 import base64
 import threading
-import email_sanitizer
+import pycircleanmail_module
+import misp_module
 
 # Global variables
 IMAP4_PORT, CERT = 993, 'cert.pem'
@@ -191,7 +192,10 @@ class IMAP_Client:
             client_request = self.recv_from_client()
             client_request = self.handle_multiple_requests(client_request)
 
-            email_sanitizer.process(client_request, self.conn_server)
+            # External modules
+            print("Request to be processed: " + client_request[1])
+            pycircleanmail_module.process(client_request, self.conn_server)
+            #misp_module.process(client_request, self.conn_server)
 
             server_tag = self.conn_server._new_tag().decode()
             self.send_to_server(self.swap_tag(client_request, server_tag)[1])
