@@ -5,8 +5,8 @@ import imaplib
 import re
 import base64
 import threading
-import pycircleanmail_module
-import misp_module
+#import pycircleanmail_module
+#import misp_module
 
 # Global variables
 IMAP4_PORT, CERT = 993, 'cert.pem'
@@ -76,8 +76,9 @@ class IMAP_Client:
         self.state = 'LOGOUT'
 
         try:
-            #self.conn_client = ssl.wrap_socket(ssock, ssl_version=ssl.PROTOCOL_TLS)
-            self.conn_client = ssl.wrap_socket(ssock, certfile=CERT, server_side= True)
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+            self.conn_client = context.wrap_socket(ssock)
+            #self.conn_client = ssl.wrap_socket(ssock, certfile=CERT, server_side= True)
         except ssl.SSLError as e:
             log_error(e)
             self.close()
@@ -195,7 +196,7 @@ class IMAP_Client:
 
             # External modules
             print("Request to be processed: " + client_request[1])
-            pycircleanmail_module.process(client_request, self.conn_server)
+            #pycircleanmail_module.process(client_request, self.conn_server)
             #misp_module.process(client_request, self.conn_server)
 
             server_tag = self.conn_server._new_tag().decode()

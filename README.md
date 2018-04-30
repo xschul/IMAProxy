@@ -13,11 +13,12 @@ IMAP Proxy to sanitize attachments.
 
 ## Installation and run
 
-Clone this repository and run the proxy.
+Clone this repository, install and run the proxy.
 
 ```
 git clone https://github.com/xschul/IMAProxy.git
-python3 proxy.py
+pip3 install -r requirements.txt
+python3 proxy/proxy.py
 ```
 
 ### Run with Thunderbird

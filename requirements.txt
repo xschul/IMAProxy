@@ -1,1 +1,5 @@
+twiggy
+olefile
+dateutil
+python-magic
 git+https://github.com/CIRCL/PyCIRCLeanMail.git
