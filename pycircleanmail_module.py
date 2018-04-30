@@ -21,7 +21,7 @@ def process(request, conn_server):
 
         print("IN SANITIZER MODULE: uid_flag ", uid_flag, " flags ", str_flags)
 
-        # User wants to fetch an entire email ? TODO: check all possiblities
+        # User wants to fetch an entire email
         if 'BODY.PEEK[]' in str_flags:
             sanitize(uid_flag, str_flags, conn_server)
             
@@ -38,7 +38,7 @@ def sanitize(uid, flags, conn_server):
     if not mail.get('CIRCL-Sanitizer'):
         print('Need to sanitize')
         # Process email with the module
-        t = KittenGroomerMail(bmail, debug=True)
+        t = KittenGroomerMail(bmail)
         m = t.process_mail()
         content = BytesIO(m.as_bytes())
 
