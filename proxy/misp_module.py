@@ -1,13 +1,6 @@
-import email
 import re
-import imaplib
-import time
 
-from io import BytesIO
-from kittengroomer_email import KittenGroomerMail
-
-# 15 uid move 904 "MISP"
-_moveUID_request = re.compile(r'\A[A-Z]*[0-9]+\s(UID)|(uid)\s(move)|(MOVE)\s[0-9]+\s("MISP")')
+_moveUID_request = re.compile(r'\A[A-Z]*[0-9]+\s(uid)\s(move)\s[0-9]+\s("MISP")', flags=re.IGNORECASE)
 
 def process(request, conn_server):
     str_request = request[1]
@@ -20,4 +13,4 @@ def process(request, conn_server):
         flags = request[0][2][2:]
         str_flags = ' '.join(str(flag) for flag in flags)
 
-        print("IN MISP MODULE: uid_flag ", uid_flag, " flags ", str_flags)
+        print("IN MISP MODULE: ", request[1])

@@ -6,7 +6,7 @@ import re
 import base64
 import threading
 #import pycircleanmail_module
-#import misp_module
+import misp_module
 
 # Global variables
 IMAP4_PORT, CERT = 993, 'cert.pem'
@@ -23,7 +23,7 @@ capability_flags = (
     'AUTH=PLAIN',
 #    'AUTH=XOAUTH2', 
     'SASL-IR',
-#    'IDLE',
+    'IDLE',
     'UIDPLUS',
     'MOVE',
     'ID',
@@ -76,9 +76,7 @@ class IMAP_Client:
         self.state = 'LOGOUT'
 
         try:
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS)
-            self.conn_client = context.wrap_socket(ssock)
-            #self.conn_client = ssl.wrap_socket(ssock, certfile=CERT, server_side= True)
+            self.conn_client = ssl.wrap_socket(ssock, certfile=CERT, server_side= True)
         except ssl.SSLError as e:
             log_error(e)
             self.close()
@@ -166,7 +164,8 @@ class IMAP_Client:
 
         username = credentials[0]
         password = credentials[1]
-        domain = username.split('@')[1].split('.')[0] # TODO: Should work with multiple dots after '@'
+        domains = username.split('@')[1].split('.')[:-1] # Remove before '@' and remove '.com' / '.be' / ...
+        domain = ' '.join(str(d) for d in domains) 
 
         try:
             hostname = email_hostname[domain]
@@ -174,7 +173,7 @@ class IMAP_Client:
             log_error('Unknown hostname')
             return False
 
-        print("connect with ", username, password)
+        print("Trying to connect ", username)
 
         self.conn_server = imaplib.IMAP4_SSL(hostname)
 
@@ -197,7 +196,7 @@ class IMAP_Client:
             # External modules
             print("Request to be processed: " + client_request[1])
             #pycircleanmail_module.process(client_request, self.conn_server)
-            #misp_module.process(client_request, self.conn_server)
+            misp_module.process(client_request, self.conn_server)
 
             server_tag = self.conn_server._new_tag().decode()
             self.send_to_server(self.swap_tag(client_request, server_tag)[1])

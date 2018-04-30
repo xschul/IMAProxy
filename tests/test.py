@@ -38,10 +38,6 @@ if __name__ == '__main__':
         ('DELETE', ('/tmp/yyy',)))
 
     test_seq2 = (
-        # Sanitize commands
-        )
-
-    test_seq3 = (
         ('select', ()),
         ('response',('UIDVALIDITY',)),
         ('uid', ('SEARCH', 'ALL')),
@@ -68,7 +64,7 @@ if __name__ == '__main__':
     for cmd,args in test_seq1:
         run(cmd, args)
 
-    for cmd,args in test_seq3:
+    for cmd,args in test_seq2:
         dat = run(cmd, args)
 
         if (cmd,args) != ('uid', ('SEARCH', 'ALL')):

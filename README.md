@@ -28,7 +28,7 @@ First, open [Thunderbird](https://www.mozilla.org/en-US/thunderbird/), right-cli
 ### Run the tests
 
 ```
-h2 python3 test_proxy.py $userAccount $password $ip_proxy
+python3 tests/test.py $userAccount $password $ip_proxy
 ```
 
 ## Built With

@@ -8,7 +8,7 @@ import dateutil
 from io import BytesIO
 from kittengroomer_email import KittenGroomerMail
 
-_fetchUID_request = re.compile(r'\A[A-Z]*[0-9]+\s(UID)|(uid)\s(fetch)|(FETCH)\s[0-9]+')
+_fetchUID_request = re.compile(r'\A[A-Z]*[0-9]+\s(uid)\s(fetch)\s[0-9]+', flags=re.IGNORECASE)
 
 def process(request, conn_server):
     str_request = request[1]
@@ -21,14 +21,18 @@ def process(request, conn_server):
         flags = request[0][2][2:]
         str_flags = ' '.join(str(flag) for flag in flags)
 
-        print("IN SANITIZER MODULE: uid_flag ", uid_flag, " flags ", str_flags)
-
         # User wants to fetch an entire email
         if 'BODY.PEEK[]' in str_flags:
-            
-            # The request can contain multiple uid
-            sanitize(uid_flag, str_flags, conn_server)
-            
+            print("IN SANITIZER MODULE: ", str_request)
+
+            # TODO: if fetch 1:* ??
+            if uid_flag.isdigit():
+                sanitize(uid_flag, str_flags, conn_server)
+            else:
+                sanitize_list(uid_flag, str_flags, conn_server)
+
+def sanitize_list(list_uid, flags, conn_server):
+
 
 def sanitize(uid, flags, conn_server):
     conn_server.state = 'SELECTED'
@@ -49,7 +53,9 @@ def sanitize(uid, flags, conn_server):
         m = t.process_mail()
         content = BytesIO(m.as_bytes())
 
-        # Original TODO: insert hashcode + note + correct date
+        # Original 
+        # TODO: insert hash
+        # TODO: correct date
         mail.add_header('CIRCL-Sanitizer', 'Original')
         conn_server.append('Quarantine', '', date, str(mail).encode())
 
