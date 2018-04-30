@@ -32,7 +32,7 @@ h2 python3 test_proxy.py $userAccount $password $ip_proxy
 
 ## Built With
 
-* [Python3](https://www.python.org/download/releases/3.0/)
+* [Python3.6](https://www.python.org/download/releases/3.0/)
 * [imaplib](https://docs.python.org/2/library/imaplib.html) - IMAP4 protocol client
 
 ## Authors

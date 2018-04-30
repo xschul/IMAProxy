@@ -2,6 +2,8 @@ import email
 import re
 import imaplib
 import time
+import datetime
+import dateutil
 
 from io import BytesIO
 from kittengroomer_email import KittenGroomerMail
@@ -23,6 +25,8 @@ def process(request, conn_server):
 
         # User wants to fetch an entire email
         if 'BODY.PEEK[]' in str_flags:
+            
+            # The request can contain multiple uid
             sanitize(uid_flag, str_flags, conn_server)
             
 
@@ -36,7 +40,10 @@ def sanitize(uid, flags, conn_server):
     bmail = msg_data[0][1]
     mail = email.message_from_string(bmail.decode('utf-8'))
     if not mail.get('CIRCL-Sanitizer'):
-        print('Need to sanitize')
+        date = mail.get('Date')
+        date = dateutil.parser.parse(date)
+        date = date.timetuple()
+
         # Process email with the module
         t = KittenGroomerMail(bmail)
         m = t.process_mail()
@@ -44,12 +51,12 @@ def sanitize(uid, flags, conn_server):
 
         # Original TODO: insert hashcode + note + correct date
         mail.add_header('CIRCL-Sanitizer', 'Original')
-        conn_server.append('Quarantine', '', imaplib.Time2Internaldate(time.time()), str(mail).encode())
+        conn_server.append('Quarantine', '', date, str(mail).encode())
 
         # Sanitized
         sanitized_email = email.message_from_string(content.getvalue().decode('utf-8'))
         sanitized_email.add_header('CIRCL-Sanitizer', 'Sanitized')
-        conn_server.append('Inbox', '', imaplib.Time2Internaldate(time.time()), str(sanitized_email).encode())
+        conn_server.append('Inbox', '', date, str(sanitized_email).encode())
 
         # Delete original
         mov, data = conn_server.uid('STORE', uid, '+FLAGS', '(\Deleted)')

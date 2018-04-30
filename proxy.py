@@ -21,7 +21,7 @@ capability_flags = (
     'IMAP4',
     'IMAP4rev1',
     'AUTH=PLAIN',
-#    'AUTH=XOAUTH2', # TODO
+#    'AUTH=XOAUTH2', 
     'SASL-IR',
 #    'IDLE',
     'UIDPLUS',
@@ -76,7 +76,8 @@ class IMAP_Client:
         self.state = 'LOGOUT'
 
         try:
-            self.conn_client = ssl.wrap_socket(ssock, certfile=CERT, server_side=True) # TODO: remove cert
+            #self.conn_client = ssl.wrap_socket(ssock, ssl_version=ssl.PROTOCOL_TLS)
+            self.conn_client = ssl.wrap_socket(ssock, certfile=CERT, server_side= True)
         except ssl.SSLError as e:
             log_error(e)
             self.close()
