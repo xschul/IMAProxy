@@ -1,9 +1,4 @@
-import email
-import re
-import imaplib
-import time
-import datetime
-from dateutil import parser
+import email, re, imaplib, time
 
 from io import BytesIO
 from kittengroomer_email import KittenGroomerMail
@@ -40,14 +35,16 @@ def sanitize_list(list_uid, flags, conn_server):
     # Get the uids
     for u in raw_uids:
         if ':' in u:
-            (start, end) = e.split(':')
-            [uids.append(uid) for uid in range(int(start), int(end))]
+            (start, end) = u.split(':')
+            [uids.append(uid) for uid in range(int(start), int(end)+1)]
         else:
             uids.append(int(u))
 
+    print("To sanitize: ", uids)
+
     # Sanitize the uids
     for uid in uids:
-        sanitize(uid, flags, conn_server)
+        sanitize(str(uid), flags, conn_server)
 
 def sanitize(uid, flags, conn_server):
     conn_server.state = 'SELECTED'
@@ -59,8 +56,11 @@ def sanitize(uid, flags, conn_server):
     bmail = msg_data[0][1]
     mail = email.message_from_string(bmail.decode('utf-8'))
     if not mail.get('CIRCL-Sanitizer'):
-        date = mail.get('Date')
-        date = imaplib.Internaldate2tuple(date.encode())
+        date_str = mail.get('Date')
+        if date_str:
+            date = imaplib.Internaldate2tuple(date_str.encode())
+        else:
+            date = imaplib.Time2Internaldate(time.time())
 
         # Process email with the module
         t = KittenGroomerMail(bmail)
@@ -69,7 +69,6 @@ def sanitize(uid, flags, conn_server):
 
         # Original 
         # TODO: insert hash
-        # TODO: correct date
         mail.add_header('CIRCL-Sanitizer', 'Original')
         conn_server.append('Quarantine', '', date, str(mail).encode())
 

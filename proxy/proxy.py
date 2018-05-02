@@ -1,15 +1,9 @@
-import sys
-import socket
-import ssl
-import imaplib
-import re
-import base64
-import threading
-import pycircleanmail_module
-import misp_module
+import sys, socket, ssl, imaplib, re, base64, threading
+from modules import pycircleanmail, misp
 
 # Global variables
-IMAP4_PORT, CERT = 993, 'cert.pem'
+MAX_CLIENT = 5
+HOST, IMAP_PORT, IMAP_PORT_SSL = '', 143, 993
 CRLF = b'\r\n'
 _request = re.compile(r'\A[A-Z]*[0-9]+\s[a-zA-Z]\s*')
 _tag = re.compile(r'[A-Z]*[0-9]+\s*')
@@ -42,19 +36,22 @@ email_hostname = {
 
 class IMAP_Proxy:
 
-    def __init__(self, host= '', port=IMAP4_PORT, certfile=None, verbose=False):
-        self.max_client = 5
+    def __init__(self, port, host=HOST, certfile=None, verbose=False):
         self.verbose = verbose
+        self.certfile = certfile
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind((host, port))
-        self.sock.listen(self.max_client)
-        self.listen(host, port)
+        self.sock.listen(MAX_CLIENT)
+        self.listen()
 
 
-    def listen(self, host, port):
+    def listen(self):
         def new_client(ssock):
-            IMAP_Client(ssock, self.verbose)
+            if not self.certfile:
+                IMAP_Client(ssock, self.verbose)
+            else:
+                IMAP_Client_SLL(ssock, self.certfile, self.verbose)
 
         while True:
             try:
@@ -74,12 +71,9 @@ class IMAP_Client:
     def __init__(self, ssock, verbose = False):
         self.verbose = verbose
         self.state = 'LOGOUT'
+        # TODO: know the current folder
 
-        try:
-            self.conn_client = ssl.wrap_socket(ssock, certfile=CERT, server_side= True)
-        except ssl.SSLError as e:
-            log_error(e)
-            self.close()
+        self.conn_client = ssock
 
         if self.auth_server(self.auth_client()):
             log_info("Link between server and client done")
@@ -195,8 +189,8 @@ class IMAP_Client:
 
             # External modules
             print("Request to be processed: " + client_request[1])
-            pycircleanmail_module.process(client_request, self.conn_server)
-            misp_module.process(client_request, self.conn_server)
+            pycircleanmail.process(client_request, self.conn_server)
+            misp.process(client_request, self.conn_server)
 
             server_tag = self.conn_server._new_tag().decode()
             self.send_to_server(self.swap_tag(client_request, server_tag)[1])
@@ -270,8 +264,8 @@ class IMAP_Client:
             print("[<--]: ", b_data)
 
     def recv_from_client(self):
-        b_response = self.conn_client.recv()
-        str_response = b_response.decode('utf-8')[:-2] # decode and remove CRLF
+        b_response = self.conn_client.recv(1024)
+        str_response = b_response.decode('utf-8', 'replace')[:-2] # decode and remove CRLF
 
         if self.verbose: 
             print("[-->]: ", b_response)
@@ -334,6 +328,16 @@ class IMAP_Client:
         if self.conn_client:
             self.conn_client.close()
 
+class IMAP_Client_SLL(IMAP_Client):
+
+    def __init__(self, ssock, certfile, verbose = False):
+        try:
+            self.conn_client = ssl.wrap_socket(ssock, certfile=certfile, server_side=True)
+        except ssl.SSLError as e:
+            log_error(e)
+            raise
+
+        IMAP_Client.__init__(self, self.conn_client, verbose)
 
 def log_info(s):
     print("[INFO]: ", s)
@@ -344,4 +348,10 @@ def log_error(s):
     print(RED, "[ERROR]: ", s, ENDC)
 
 if __name__ == '__main__':
-    IMAP_Proxy(verbose = False)
+    verbose = True
+    if len(sys.argv) <= 1:
+        IMAP_Proxy(port=IMAP_PORT,verbose = verbose)
+    else:
+        CERT = sys.argv[1]
+        IMAP_Proxy(certfile=CERT, port=IMAP_PORT_SSL, verbose = verbose)
+    
