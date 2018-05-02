@@ -5,7 +5,7 @@ import imaplib
 import re
 import base64
 import threading
-#import pycircleanmail_module
+import pycircleanmail_module
 import misp_module
 
 # Global variables
@@ -23,7 +23,7 @@ capability_flags = (
     'AUTH=PLAIN',
 #    'AUTH=XOAUTH2', 
     'SASL-IR',
-    'IDLE',
+#    'IDLE',
     'UIDPLUS',
     'MOVE',
     'ID',
@@ -42,7 +42,7 @@ email_hostname = {
 
 class IMAP_Proxy:
 
-    def __init__(self, host='', port=IMAP4_PORT, verbose = False):
+    def __init__(self, host= '', port=IMAP4_PORT, certfile=None, verbose=False):
         self.max_client = 5
         self.verbose = verbose
 
@@ -195,7 +195,7 @@ class IMAP_Client:
 
             # External modules
             print("Request to be processed: " + client_request[1])
-            #pycircleanmail_module.process(client_request, self.conn_server)
+            pycircleanmail_module.process(client_request, self.conn_server)
             misp_module.process(client_request, self.conn_server)
 
             server_tag = self.conn_server._new_tag().decode()

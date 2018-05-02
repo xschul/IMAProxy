@@ -1,6 +1,6 @@
-# Python IMAP proxy server
+# Python IMAP transparent proxy server
 
-IMAP Proxy to sanitize attachments.
+IMAP Transparent Proxy to sanitize attachments.
 
 ## Features
 
@@ -31,13 +31,7 @@ First, open [Thunderbird](https://www.mozilla.org/en-US/thunderbird/), right-cli
 python3 tests/test.py $userAccount $password $ip_proxy
 ```
 
-## Built With
-
-* [Python3.6](https://www.python.org/download/releases/3.0/)
-* [imaplib](https://docs.python.org/2/library/imaplib.html) - IMAP4 protocol client
-
 ## Authors
 
 * **Xavier Schul**
 * **CIRCL** - *Computer Incident Response Center Luxembourg* - [CIRCL](https://www.circl.lu/)
-

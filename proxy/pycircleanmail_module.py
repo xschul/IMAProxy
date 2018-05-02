@@ -3,7 +3,7 @@ import re
 import imaplib
 import time
 import datetime
-import dateutil
+from dateutil import parser
 
 from io import BytesIO
 from kittengroomer_email import KittenGroomerMail
@@ -27,12 +27,27 @@ def process(request, conn_server):
 
             # TODO: if fetch 1:* ??
             if uid_flag.isdigit():
+                print('Fetch 1 email: ', uid_flag)
                 sanitize(uid_flag, str_flags, conn_server)
             else:
+                print('Fetch multiple email: ', uid_flag)
                 sanitize_list(uid_flag, str_flags, conn_server)
 
 def sanitize_list(list_uid, flags, conn_server):
+    uids = []
+    raw_uids = list_uid.split(',')
 
+    # Get the uids
+    for u in raw_uids:
+        if ':' in u:
+            (start, end) = e.split(':')
+            [uids.append(uid) for uid in range(int(start), int(end))]
+        else:
+            uids.append(int(u))
+
+    # Sanitize the uids
+    for uid in uids:
+        sanitize(uid, flags, conn_server)
 
 def sanitize(uid, flags, conn_server):
     conn_server.state = 'SELECTED'
@@ -45,8 +60,7 @@ def sanitize(uid, flags, conn_server):
     mail = email.message_from_string(bmail.decode('utf-8'))
     if not mail.get('CIRCL-Sanitizer'):
         date = mail.get('Date')
-        date = dateutil.parser.parse(date)
-        date = date.timetuple()
+        date = imaplib.Internaldate2tuple(date.encode())
 
         # Process email with the module
         t = KittenGroomerMail(bmail)
