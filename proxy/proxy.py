@@ -11,7 +11,7 @@ Request = re.compile(r'(?P<tag>(?P<tag_alpha>[A-Z]*)(?P<tag_digit>[0-9]+))'
     r'(\s(?P<flags>.*))?', flags=re.IGNORECASE)
 Response= re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)'
     r'\s(OK)'
-    r'(\s\[(?P<flags>[A-Z-]*)\])?'
+    r'(\s\[(?P<flags>.*)\])?'
     r'\s(?P<command>[A-Z]*)'
     r'\s(completed)', flags=re.IGNORECASE)
 
@@ -32,7 +32,7 @@ capability_flags = (
     'LITERAL'
     )
 
-# Authorized email addresses with hostname
+# Authorized email addresses with hostname TODO: check with mx record
 email_hostname = {
     'hotmail': 'imap-mail.outlook.com',
     'outlook': 'imap-mail.outlook.com',
@@ -99,7 +99,6 @@ class IMAP_Client:
         def get_credentials(response, auth_type):
             
             if auth_type == "LOGIN":
-                # TODO: verify working
                 args_response = response.split(' ')
                 print(args_response)
                 username = args_response[2]
@@ -189,13 +188,16 @@ class IMAP_Client:
         return True
 
     def serve(self):
-        # Listen requests from the client
-        while self.listen:
+        def listen_request_client():
             requests = self.recv_from_client()
 
             for request in requests.split('\r\n'): # Handle multiple requests in one
 
                 request_match = Request.match(request)
+
+                if not request_match:
+                    log_error('Shouldnt happen')
+
                 client_tag = request_match.group('tag')
                 client_command = request_match.group('command').upper()
 
@@ -208,31 +210,42 @@ class IMAP_Client:
                 #misp.process(request, self.conn_server)
 
                 server_tag = self.conn_server._new_tag().decode()
-                self.send_to_server(request.replace(client_tag, server_tag))
+                self.send_to_server(request.replace(client_tag, server_tag, 1))
                 
-                server_command = None
-                server_response_tag = None
+                listen_response_server(client_tag, client_command, server_tag)
 
-                # Listen responses from the server
-                while (client_command != server_command) and (server_tag != server_response_tag):
-                    response = self.recv_from_server()
+        def listen_response_server(client_tag, client_command, server_tag):
+            def client_sequence():
+                client_sequence = self.recv_from_client()
+                while client_sequence != '':
+                    self.send_to_server(client_sequence)
+                    client_sequence = self.recv_from_client()
+                self.send_to_server(client_sequence)
 
-                    if bool(Response.search(response)): # ok response
-                        response_match = Response.match(response)
-                        server_response_tag = response_match.group('tag')
-                        server_command = response_match.group('command').upper()
+            listen_server = True
+            while listen_server:
+                response = self.recv_from_server()
+                response_match = Response.match(response)
 
-                        self.send_to_client(response.replace(server_response_tag, client_tag))
-
-                    else:
+                if response_match: # ok response
+                    server_response_tag = response_match.group('tag')
+                    server_command = response_match.group('command').upper()
+                    if (client_command == server_command) and (server_tag == server_response_tag):
+                        self.send_to_client(response.replace(server_response_tag, client_tag, 1))
+                        listen_server = False
+                    else: # Injection attempt
                         self.send_to_client(response)
 
-                        if client_command != 'FETCH' and response.startswith('+'):
-                            # Avoid injection while fetching and listen to client
-    # TODO: CREATE FUNCTION + methods for client sequence
+                else:
+                    self.send_to_client(response)
 
-    def _transmit_client_sequence(self):
-        response = self.recv_from_client()
+                if client_command != 'FETCH' and response.startswith('+'):
+                    # Avoid injection while fetching and listen to client
+                    client_sequence()
+
+        # Listen requests from the client
+        while self.listen:
+            listen_request_client()
 
     def send_to_client(self, str_data):
         b_data = str_data.encode() + CRLF
@@ -268,7 +281,6 @@ class IMAP_Client:
             print("  [-->]: ", b_data)
 
     def recv_from_server(self):
-        # TODO: Handle '+'
         b_response = self.conn_server._get_line()
         str_response = b_response.decode('utf-8', 'replace')    
 
@@ -301,6 +313,7 @@ def log_error(s):
     print(RED, "[ERROR]: ", s, ENDC) #TODO: repalce by raise error
 
 if __name__ == '__main__':
+    #TODO: implement parser
     verbose = True
     if len(sys.argv) <= 1:
         IMAP_Proxy(port=IMAP_PORT,verbose = verbose)
