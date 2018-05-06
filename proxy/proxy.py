@@ -5,8 +5,8 @@ from modules import pycircleanmail, misp
 MAX_CLIENT = 5
 HOST, IMAP_PORT, IMAP_PORT_SSL = '', 143, 993
 CRLF = b'\r\n'
-Request = re.compile(r'(?P<tag>(?P<tag_alpha>[A-Z]*)(?P<tag_digit>[0-9]+))\s(?P<command>[A-Z]*)(\s(?P<flags>.*))*', flags=re.IGNORECASE)
-Response= re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)\s(OK)\s(?P<flags>\[(?P<command>[A-Z]*)\s(completed)', flags=re.IGNORECASE)
+Request = re.compile(r'(?P<tag>(?P<tag_alpha>[A-Z]*)(?P<tag_digit>[0-9]+))(\s(UID))?\s(?P<command>[A-Z]*)(\s(?P<flags>.*))*', flags=re.IGNORECASE)
+Response= re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)\s(OK)(\s\[(?P<flags>[A-Z-]*)\])?\s(?P<command>[A-Z]*)\s(completed)', flags=re.IGNORECASE)
 
 # Capabilities of the proxy
 capability_flags = ( 
@@ -189,7 +189,7 @@ class IMAP_Client:
 
             request_match = Request.match(request)
             client_tag = request_match.group('tag')
-            client_command = request_match.group('command')
+            client_command = request_match.group('command').upper()
 
             # External modules
             print("Request to be processed: " + request)
@@ -209,7 +209,7 @@ class IMAP_Client:
                 if bool(Response.search(response)): # ok response
                     response_match = Response.match(response)
                     server_response_tag = response_match.group('tag')
-                    server_command = response_match.group('command')
+                    server_command = response_match.group('command').upper()
 
                     self.send_to_client(response.replace(server_response_tag, client_tag))
 
