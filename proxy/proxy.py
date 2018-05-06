@@ -1,12 +1,19 @@
 import sys, socket, ssl, imaplib, re, base64, threading
 from modules import pycircleanmail, misp
 
-# Global variables
 MAX_CLIENT = 5
 HOST, IMAP_PORT, IMAP_PORT_SSL = '', 143, 993
 CRLF = b'\r\n'
-Request = re.compile(r'(?P<tag>(?P<tag_alpha>[A-Z]*)(?P<tag_digit>[0-9]+))(\s(UID))?\s(?P<command>[A-Z]*)(\s(?P<flags>.*))*', flags=re.IGNORECASE)
-Response= re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)\s(OK)(\s\[(?P<flags>[A-Z-]*)\])?\s(?P<command>[A-Z]*)\s(completed)', flags=re.IGNORECASE)
+
+Request = re.compile(r'(?P<tag>(?P<tag_alpha>[A-Z]*)(?P<tag_digit>[0-9]+))'
+    r'(\s(UID))?'
+    r'\s(?P<command>[A-Z]*)'
+    r'(\s(?P<flags>.*))?', flags=re.IGNORECASE)
+Response= re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)'
+    r'\s(OK)'
+    r'(\s\[(?P<flags>[A-Z-]*)\])?'
+    r'\s(?P<command>[A-Z]*)'
+    r'\s(completed)', flags=re.IGNORECASE)
 
 # Capabilities of the proxy
 capability_flags = ( 
@@ -68,17 +75,18 @@ class IMAP_Client:
 
     def __init__(self, ssock, verbose = False):
         self.verbose = verbose
-        self.state = 'LOGOUT'
+        self.listen = False
         # TODO: know the current folder
 
         self.conn_client = ssock
 
         if self.auth_server(self.auth_client()):
             log_info("Link between server and client done")
-            self.state = 'LOGIN'
+            self.listen = True
             self.serve()
 
         self.close()
+        print('Stop listening')
 
     def auth_client(self):
         
@@ -94,8 +102,8 @@ class IMAP_Client:
                 # TODO: verify working
                 args_response = response.split(' ')
                 print(args_response)
-                username = flags[2]
-                password = flags[3]
+                username = args_response[2]
+                password = args_response[3]
 
             elif auth_type == "PLAIN":
                 dec_response = base64.b64decode(response).split(b'\x00')
@@ -117,13 +125,13 @@ class IMAP_Client:
 
         while True:
             request = self.recv_from_client()
+            match = Request.match(request)
 
-            if not bool(Request.search(request)):
+            if not match:
                 # Not a correct request
                 log_error('Incorrect request: ' + request)
                 return None
 
-            match = Request.match(request)
             client_tag = match.group('tag')
             client_command = match.group('command').upper()
 
@@ -137,7 +145,6 @@ class IMAP_Client:
 
             elif client_command == 'AUTHENTICATE':
                 auth_type = match.group('flags')
-                print('auth: ', auth_type)
                 self.send_to_client('+')
                 request = self.recv_from_client()
                 self.send_to_client(ok(client_tag, client_command))
@@ -183,63 +190,49 @@ class IMAP_Client:
 
     def serve(self):
         # Listen requests from the client
-        while self.state == 'LOGIN':
-            request = self.recv_from_client()
-            request = self.handle_multiple_requests(request)
+        while self.listen:
+            requests = self.recv_from_client()
 
-            request_match = Request.match(request)
-            client_tag = request_match.group('tag')
-            client_command = request_match.group('command').upper()
+            for request in requests.split('\r\n'): # Handle multiple requests in one
 
-            # External modules
-            print("Request to be processed: " + request)
-            #pycircleanmail.process(request, self.conn_server)
-            #misp.process(request, self.conn_server)
+                request_match = Request.match(request)
+                client_tag = request_match.group('tag')
+                client_command = request_match.group('command').upper()
 
-            server_tag = self.conn_server._new_tag().decode()
-            self.send_to_server(request.replace(client_tag, server_tag))
-            
-            server_command = None
-            server_response_tag = None
+                if client_command == 'LOGOUT':
+                    self.listen = False
 
-            # Listen responses from the server
-            while (client_command != server_command) and (server_tag != server_response_tag):
-                response = self.recv_from_server()
+                # External modules
+                print("Request to be processed: " + request)
+                #pycircleanmail.process(request, self.conn_server)
+                #misp.process(request, self.conn_server)
 
-                if bool(Response.search(response)): # ok response
-                    response_match = Response.match(response)
-                    server_response_tag = response_match.group('tag')
-                    server_command = response_match.group('command').upper()
+                server_tag = self.conn_server._new_tag().decode()
+                self.send_to_server(request.replace(client_tag, server_tag))
+                
+                server_command = None
+                server_response_tag = None
 
-                    self.send_to_client(response.replace(server_response_tag, client_tag))
+                # Listen responses from the server
+                while (client_command != server_command) and (server_tag != server_response_tag):
+                    response = self.recv_from_server()
 
-                else:
-                    self.send_to_client(response)
+                    if bool(Response.search(response)): # ok response
+                        response_match = Response.match(response)
+                        server_response_tag = response_match.group('tag')
+                        server_command = response_match.group('command').upper()
 
-                print(client_command, server_command, server_tag, server_response_tag)
+                        self.send_to_client(response.replace(server_response_tag, client_tag))
 
-    def handle_multiple_requests(self, request):
-        ''' Some requests contain mutliple requests '''
+                    else:
+                        self.send_to_client(response)
 
-        first_request = Request.search(request)
-        if not first_request:
-            log_error('bad command') #TODO: replace by error
+                        if client_command != 'FETCH' and response.startswith('+'):
+                            # Avoid injection while fetching and listen to client
+    # TODO: CREATE FUNCTION + methods for client sequence
 
-        first_match = Request.match(request)
-        flags = first_match.group('flags')
-
-        if bool(Request.search(flags)): # Request is in flags -> 2 requests
-            second_match = Request.match(flags)
-            first_digit = int( first_match.group('tag_digit'))
-            second_digit= int(second_match.group('tag_digit'))
-
-            # Verify the second tag is the first tag + 1
-            if second_digit == (first_digit + 1):
-                self.send_to_server(first_request.group(0))
-                second_request = Request.search(flags)
-                return handle_multiple_requests(second_request)
-
-        return request
+    def _transmit_client_sequence(self):
+        response = self.recv_from_client()
 
     def send_to_client(self, str_data):
         b_data = str_data.encode() + CRLF
@@ -248,7 +241,7 @@ class IMAP_Client:
             self.conn_client.send(b_data)
         except (BrokenPipeError, ConnectionResetError):
             log_info('Connection reset by peer')
-            self.state = 'LOGOUT'
+            self.listen = False
 
         if self.verbose: 
             print("[<--]: ", b_data)
@@ -269,7 +262,7 @@ class IMAP_Client:
             self.conn_server.send(b_data)
         except (BrokenPipeError, ConnectionResetError):
             log_info('Connection reset by peer')
-            self.state = 'LOGOUT'
+            self.listen = False
 
         if self.verbose: 
             print("  [-->]: ", b_data)
