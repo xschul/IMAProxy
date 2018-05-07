@@ -1,4 +1,4 @@
-import sys, socket, ssl, imaplib, re, base64, threading, argparse
+import sys, socket, ssl, imaplib, re, base64, threading, oauth2, argparse, dns.resolver
 from modules import pycircleanmail, misp
 
 MAX_CLIENT = 5
@@ -22,7 +22,6 @@ capability_flags = (
     'AUTH=PLAIN',
 #    'AUTH=XOAUTH2', 
     'SASL-IR',
-#    'IDLE',
     'UIDPLUS',
     'MOVE',
     'ID',
@@ -96,8 +95,7 @@ class IMAP_Client:
     def auth_client(self):
         
         def ok(tag, command):
-            """
-                Build the OK response to a specific command with the corresponding tag
+            """ Build the OK response to a specific command with the corresponding tag
             """
             return tag + ' OK ' + command + ' completed.'
 
@@ -216,7 +214,7 @@ class IMAP_Client:
                 # External modules
                 print("Request to be processed: " + request)
                 pycircleanmail.process(request, self)
-                misp.process(request, self.conn_server)
+                misp.process(request, self)
 
                 server_tag = self.conn_server._new_tag().decode()
                 self.send_to_server(request.replace(client_tag, server_tag, 1))
@@ -242,7 +240,7 @@ class IMAP_Client:
                     if (client_command == server_command) and (server_tag == server_response_tag):
                         self.send_to_client(response.replace(server_response_tag, client_tag, 1))
                         listen_server = False
-                    else: # Injection attempt
+                    else: # Counter injection attempt
                         self.send_to_client(response)
 
                 else:

@@ -1,7 +1,7 @@
 import re
 from .utils import convert_uids_str_to_list, fetch
 
-MISP_FOLDER = 'Misp'
+MISP_FOLDER = '\"MISP\"'
 
 UID_Move = re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)'
     r'\s(UID)'
@@ -41,3 +41,8 @@ def process(request, IMAP_client):
 
 def forward_to_misp(uid, conn_server, folder, uid_command):
     bmail = fetch(uid, conn_server, folder, uid_command)
+
+    if not bmail:
+        return
+
+    print('IN MISP MODULE')

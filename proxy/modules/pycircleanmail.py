@@ -48,6 +48,10 @@ def process(request, IMAP_client):
 
 def sanitize(uid, conn_server, folder, uid_command):
     bmail = fetch(uid, conn_server, folder, uid_command)
+
+    if not bmail:
+        return
+
     mail = email.message_from_string(bmail.decode('utf-8'))
     if not mail.get('CIRCL-Sanitizer'):
         date_str = mail.get('Date')
