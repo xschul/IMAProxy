@@ -55,9 +55,8 @@ def run_tests(conn_proxy, username, password):
         result = run('uid', ('FETCH', '%s' % uid[-1].decode(),
                 '(FLAGS INTERNALDATE RFC822.SIZE RFC822.HEADER RFC822.TEXT)'))
         mail = result[0][1]
-        print(mail)
         if 'CIRCL-Sanitizer' not in mail.decode():
-            failed_tests.append('%s => Email not sanitized' % cmd)
+            failed_tests.append('Email not sanitized')
 
     # Display results
     if not failed_tests:
