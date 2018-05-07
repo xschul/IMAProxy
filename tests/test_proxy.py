@@ -50,8 +50,6 @@ def run_tests(conn_proxy, username, password):
         if not uid: 
             continue
 
-        print(uid)
-
         result = run('uid', ('FETCH', '%s' % uid[-1].decode(),
                 '(FLAGS INTERNALDATE RFC822.SIZE RFC822.HEADER RFC822.TEXT)'))
         mail = result[0][1]

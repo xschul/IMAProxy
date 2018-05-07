@@ -216,7 +216,7 @@ class IMAP_Client:
                 # External modules
                 print("Request to be processed: " + request)
                 pycircleanmail.process(request, self)
-                #misp.process(request, self.conn_server)
+                misp.process(request, self.conn_server)
 
                 server_tag = self.conn_server._new_tag().decode()
                 self.send_to_server(request.replace(client_tag, server_tag, 1))
