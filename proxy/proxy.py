@@ -1,12 +1,19 @@
-import sys, socket, ssl, imaplib, re, base64, threading
+import sys, socket, ssl, imaplib, re, base64, threading, argparse
 from modules import pycircleanmail, misp
 
-# Global variables
 MAX_CLIENT = 5
-HOST, IMAP_PORT, IMAP_PORT_SSL = '', 143, 993
+HOST, IMAP_PORT, IMAP_SSL_PORT = '', 143, 993
 CRLF = b'\r\n'
-Request = re.compile(r'(?P<tag>(?P<tag_alpha>[A-Z]*)(?P<tag_digit>[0-9]+))\s(?P<command>[A-Z]*)(\s(?P<flags>.*))*', flags=re.IGNORECASE)
-Response= re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)\s(OK)\s(?P<flags>\[(?P<command>[A-Z]*)\s(completed)', flags=re.IGNORECASE)
+
+Request = re.compile(r'(?P<tag>(?P<tag_alpha>[A-Z]*)(?P<tag_digit>[0-9]+))'
+    r'(\s(UID))?'
+    r'\s(?P<command>[A-Z]*)'
+    r'(\s(?P<flags>.*))?', flags=re.IGNORECASE)
+Response= re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)'
+    r'\s(OK)'
+    r'(\s\[(?P<flags>.*)\])?'
+    r'\s(?P<command>[A-Z]*)'
+    r'\s(completed)', flags=re.IGNORECASE)
 
 # Capabilities of the proxy
 capability_flags = ( 
@@ -25,7 +32,7 @@ capability_flags = (
     'LITERAL'
     )
 
-# Authorized email addresses with hostname
+# Authorized email addresses with hostname TODO: check with mx record
 email_hostname = {
     'hotmail': 'imap-mail.outlook.com',
     'outlook': 'imap-mail.outlook.com',
@@ -34,13 +41,22 @@ email_hostname = {
 
 class IMAP_Proxy:
 
-    def __init__(self, port, host=HOST, certfile=None, verbose=False):
+    def __init__(self, port=None, host=HOST, certfile=None, max_client=MAX_CLIENT, verbose=False):
         self.verbose = verbose
         self.certfile = certfile
 
+        if not port: # Set default port
+            if not certfile: # Without SSL/TLS
+                port = IMAP_PORT
+            else: # With SSL/TLS
+                port = IMAP_SSL_PORT
+
+        if not max_client:
+            max_client = MAX_CLIENT
+
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind((host, port))
-        self.sock.listen(MAX_CLIENT)
+        self.sock.listen(max_client)
         self.listen()
 
 
@@ -55,12 +71,9 @@ class IMAP_Proxy:
             try:
                 ssock, addr = self.sock.accept()
                 threading.Thread(target = new_client, args = (ssock,)).start()
-
             except KeyboardInterrupt:
                 break
-            except Exception as e:
-                log_error(str(e))
-
+            
         if self.sock:
             self.sock.close()
 
@@ -68,15 +81,15 @@ class IMAP_Client:
 
     def __init__(self, ssock, verbose = False):
         self.verbose = verbose
-        self.state = 'LOGOUT'
-        # TODO: know the current folder
-
+        self.listen_client = False
         self.conn_client = ssock
 
-        if self.auth_server(self.auth_client()):
-            log_info("Link between server and client done")
-            self.state = 'LOGIN'
-            self.serve()
+        try:
+            if self.auth_server(self.auth_client()):
+                self.listen_client = True
+                self.serve()
+        except ValueError as e:
+            print('[ERROR]', e)
 
         self.close()
 
@@ -91,11 +104,9 @@ class IMAP_Client:
         def get_credentials(response, auth_type):
             
             if auth_type == "LOGIN":
-                # TODO: verify working
                 args_response = response.split(' ')
-                print(args_response)
-                username = flags[2]
-                password = flags[3]
+                username = args_response[2]
+                password = args_response[3]
 
             elif auth_type == "PLAIN":
                 dec_response = base64.b64decode(response).split(b'\x00')
@@ -111,19 +122,20 @@ class IMAP_Client:
             if password.startswith('"') and password.endswith('"'):
                 password = password[1:-1]
 
+            print(username, password)
             return (username, password)
 
         self.send_to_client('* OK Service Ready.')
 
         while True:
             request = self.recv_from_client()
-
-            if not bool(Request.search(request)):
-                # Not a correct request
-                log_error('Incorrect request: ' + request)
-                return None
-
             match = Request.match(request)
+
+            if not match:
+                # Not a correct request
+                raise ValueError('Error while authenticate to the client: '
+                    + request, ' contains no tag and/or no command')
+
             client_tag = match.group('tag')
             client_command = match.group('command').upper()
 
@@ -137,7 +149,6 @@ class IMAP_Client:
 
             elif client_command == 'AUTHENTICATE':
                 auth_type = match.group('flags')
-                print('auth: ', auth_type)
                 self.send_to_client('+')
                 request = self.recv_from_client()
                 self.send_to_client(ok(client_tag, client_command))
@@ -149,8 +160,8 @@ class IMAP_Client:
                 return get_credentials(request, auth_type)
 
             else:
-                log_error('Unknown request: ' + request)
-                return None
+                raise ValueError('Error while authenticate to the client: '
+                    + 'The command', client_command, 'not supported.')
 
     def auth_server(self, credentials):
         if not credentials:
@@ -164,7 +175,6 @@ class IMAP_Client:
         try:
             hostname = email_hostname[domain]
         except KeyError:
-            log_error('Unknown hostname')
             return False
 
         print("Trying to connect ", username)
@@ -173,73 +183,83 @@ class IMAP_Client:
 
         try:
             self.conn_server.login(username, password)
-        except Exception:
-            log_error('Invalid credentials')
-            return False
-
-        log_info('Logged in')
+        except imaplib.IMAP4.error:
+            raise ValueError('Invalid credentials')
 
         return True
 
     def serve(self):
-        # Listen requests from the client
-        while self.state == 'LOGIN':
-            request = self.recv_from_client()
-            request = self.handle_multiple_requests(request)
+        def listen_request_client():
+            def process_client_command(command, flags):
+                if command == 'LOGOUT':
+                    self.listen_client = False
 
-            request_match = Request.match(request)
-            client_tag = request_match.group('tag')
-            client_command = request_match.group('command')
+                elif command == 'SELECT':
+                    self.set_current_folder(flags)
 
-            # External modules
-            print("Request to be processed: " + request)
-            #pycircleanmail.process(request, self.conn_server)
-            #misp.process(request, self.conn_server)
 
-            server_tag = self.conn_server._new_tag().decode()
-            self.send_to_server(request.replace(client_tag, server_tag))
-            
-            server_command = None
-            server_response_tag = None
+            requests = self.recv_from_client()
 
-            # Listen responses from the server
-            while (client_command != server_command) and (server_tag != server_response_tag):
+            for request in requests.split('\r\n'): # Handle multiple requests in one
+
+                request_match = Request.match(request)
+
+                if not request_match:
+                    raise ValueError('The request contains no tag and/or no command')
+
+                client_tag = request_match.group('tag')
+                client_command = request_match.group('command').upper()
+                client_flags = request_match.group('flags')
+
+                process_client_command(client_command, client_flags)
+
+                # External modules
+                print("Request to be processed: " + request)
+                pycircleanmail.process(request, self)
+                #misp.process(request, self.conn_server)
+
+                server_tag = self.conn_server._new_tag().decode()
+                self.send_to_server(request.replace(client_tag, server_tag, 1))
+                
+                listen_response_server(client_tag, client_command, server_tag)
+
+        def listen_response_server(client_tag, client_command, server_tag):
+            def client_sequence():
+                client_sequence = self.recv_from_client()
+                while client_sequence != '':
+                    self.send_to_server(client_sequence)
+                    client_sequence = self.recv_from_client()
+                self.send_to_server(client_sequence)
+
+            listen_server = True
+            while listen_server:
                 response = self.recv_from_server()
+                response_match = Response.match(response)
 
-                if bool(Response.search(response)): # ok response
-                    response_match = Response.match(response)
+                if response_match: # ok response
                     server_response_tag = response_match.group('tag')
-                    server_command = response_match.group('command')
-
-                    self.send_to_client(response.replace(server_response_tag, client_tag))
+                    server_command = response_match.group('command').upper()
+                    if (client_command == server_command) and (server_tag == server_response_tag):
+                        self.send_to_client(response.replace(server_response_tag, client_tag, 1))
+                        listen_server = False
+                    else: # Injection attempt
+                        self.send_to_client(response)
 
                 else:
                     self.send_to_client(response)
 
-                print(client_command, server_command, server_tag, server_response_tag)
+                if client_command != 'FETCH' and response.startswith('+'):
+                    # Avoid injection while fetching and listen to client
+                    client_sequence()
 
-    def handle_multiple_requests(self, request):
-        ''' Some requests contain mutliple requests '''
+        # Listen requests from the client
+        while self.listen_client:
+            listen_request_client()
 
-        first_request = Request.search(request)
-        if not first_request:
-            log_error('bad command') #TODO: replace by error
-
-        first_match = Request.match(request)
-        flags = first_match.group('flags')
-
-        if bool(Request.search(flags)): # Request is in flags -> 2 requests
-            second_match = Request.match(flags)
-            first_digit = int( first_match.group('tag_digit'))
-            second_digit= int(second_match.group('tag_digit'))
-
-            # Verify the second tag is the first tag + 1
-            if second_digit == (first_digit + 1):
-                self.send_to_server(first_request.group(0))
-                second_request = Request.search(flags)
-                return handle_multiple_requests(second_request)
-
-        return request
+    def set_current_folder(self, folder):
+        if folder.startswith('"') and folder.endswith('"'):
+            folder = folder[1:-1]
+        self.current_folder = folder
 
     def send_to_client(self, str_data):
         b_data = str_data.encode() + CRLF
@@ -247,8 +267,7 @@ class IMAP_Client:
         try:
             self.conn_client.send(b_data)
         except (BrokenPipeError, ConnectionResetError):
-            log_info('Connection reset by peer')
-            self.state = 'LOGOUT'
+            self.listen_client = False
 
         if self.verbose: 
             print("[<--]: ", b_data)
@@ -268,14 +287,12 @@ class IMAP_Client:
         try:
             self.conn_server.send(b_data)
         except (BrokenPipeError, ConnectionResetError):
-            log_info('Connection reset by peer')
-            self.state = 'LOGOUT'
+            self.listen_client = False
 
         if self.verbose: 
             print("  [-->]: ", b_data)
 
     def recv_from_server(self):
-        # TODO: Handle '+'
         b_response = self.conn_server._get_line()
         str_response = b_response.decode('utf-8', 'replace')    
 
@@ -294,24 +311,17 @@ class IMAP_Client_SLL(IMAP_Client):
         try:
             self.conn_client = ssl.wrap_socket(ssock, certfile=certfile, server_side=True)
         except ssl.SSLError as e:
-            log_error(e)
             raise
 
         IMAP_Client.__init__(self, self.conn_client, verbose)
 
-def log_info(s):
-    print("[INFO]: ", s)
-
-def log_error(s):
-    RED = '\033[91m'
-    ENDC = '\033[0m'
-    print(RED, "[ERROR]: ", s, ENDC) #TODO: repalce by raise error
-
 if __name__ == '__main__':
-    verbose = True
-    if len(sys.argv) <= 1:
-        IMAP_Proxy(port=IMAP_PORT,verbose = verbose)
-    else:
-        CERT = sys.argv[1]
-        IMAP_Proxy(certfile=CERT, port=IMAP_PORT_SSL, verbose = verbose)
-    
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--certfile', help='Enable SSL/TLS connection over port 993 (by default) with the certfile given. '
+        + 'Without this argument, the connection will not use SSL/TLS over port 143 (by default)')
+    parser.add_argument('-p', '--port', type=int, help='Listen on the given port')
+    parser.add_argument('-n', '--nclient', type=int, help='Maximum number of client supported by the proxy')
+    parser.add_argument('-v', '--verbose', help='Echo IMAP payload', action='store_true')
+    args = parser.parse_args()
+
+    IMAP_Proxy(port=args.port, certfile=args.certfile, max_client=args.nclient, verbose=args.verbose)
