@@ -5,30 +5,54 @@ from kittengroomer_email import KittenGroomerMail
 UID_Fetch = re.compile(r'(?P<tag>[A-Z]*[0-9]+)'
     r'\s(UID)'
     r'\s(FETCH)'
-    r'\s\((?P<flags>.*)\)', flags=re.IGNORECASE)
+    r'\s(?P<uid>[0-9:,]+)'
+    r'\s(?P<flags>.*)', flags=re.IGNORECASE)
 
-def process(request, conn_server):
-    str_request = request[1]
+'''Fetch = re.compile(r'(?P<tag>[A-Z]*[0-9]+)'
+    r'\s(UID)'
+    r'\s(FETCH)'
+    r'\s(?P<uid>[0-9:,]+)'
+    r'\s(?P<flags>.*)', flags=re.IGNORECASE)'''
+
+FLAGS = (
+    'BODY.PEEK[]',
+    'RFC822.TEXT'
+    )
+
+def process(request, IMAP_client):
+    match = UID_Fetch.match(request)
 
     # Email is fetched using UID fetch command
-    if bool(_fetchUID_request.search(str_request)):
-        tag = request[0][0]
-        command = request[0][1]
-        uid_flag = request[0][2][1]
-        flags = request[0][2][2:]
-        str_flags = ' '.join(str(flag) for flag in flags)
+    if match:
+        print('IIIN')
+        tag = match.group('tag')
+        uid = match.group('uid')
+        flags = match.group('flags')
+    else:
+        return
 
-        # User wants to fetch an entire email
-        if 'BODY.PEEK[]' in str_flags:
-            print("IN SANITIZER MODULE: ", str_request)
+    print(uid, flags)
+    conn_server = IMAP_client.conn_server
+    folder = IMAP_client.current_folder.upper()
 
-            # TODO: if fetch 1:* ??
-            if uid_flag.isdigit():
-                print('Fetch 1 email: ', uid_flag)
-                sanitize(uid_flag, str_flags, conn_server)
-            else:
-                print('Fetch multiple email: ', uid_flag)
-                sanitize_list(uid_flag, str_flags, conn_server)
+    if 'SENT' in folder:
+        # Don't sanitize sent emails
+        return
+
+    if not any(flag in flags for flag in FLAGS):
+        # The user don't want to fetch the body of an email
+        print('Dont want to fetch netire email:', flags)
+        return 
+    
+    print('WANTS TO FETCH ENTIRE BODY')
+
+    # TODO: if fetch 1:* ??
+    if uid.isdigit():
+        print('Fetch 1 email: ', uid)
+        sanitize(uid, flags, conn_server)
+    else:
+        print('Fetch multiple email: ', uid)
+        sanitize_list(uid, flags, conn_server)
 
 def sanitize_list(list_uid, flags, conn_server):
     uids = []
@@ -50,7 +74,10 @@ def sanitize_list(list_uid, flags, conn_server):
 
 def sanitize(uid, flags, conn_server):
     conn_server.state = 'SELECTED'
+    print(uid, flags)
     result, msg_data = conn_server.uid('fetch', uid, flags)
+
+    print('Result', result, 'with flags: ', flags)
 
     if not msg_data[0]: # Email no longer exists
         return

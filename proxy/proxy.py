@@ -68,10 +68,12 @@ class IMAP_Proxy:
                 IMAP_Client_SLL(ssock, self.certfile, self.verbose)
 
         while True:
-            ssock, addr = self.sock.accept()
-            threading.Thread(target = new_client, args = (ssock,)).start()
+            try:
+                ssock, addr = self.sock.accept()
+                threading.Thread(target = new_client, args = (ssock,)).start()
+            except KeyboardInterrupt:
+                break
             
-
         if self.sock:
             self.sock.close()
 
@@ -80,8 +82,6 @@ class IMAP_Client:
     def __init__(self, ssock, verbose = False):
         self.verbose = verbose
         self.listen_client = False
-        # TODO: know the current folder
-
         self.conn_client = ssock
 
         try:
@@ -195,8 +195,7 @@ class IMAP_Client:
                     self.listen_client = False
 
                 elif command == 'SELECT':
-                    self.current_folder = flags
-                    print('CURRENT FOLDER: ', self.current_folder)
+                    self.set_current_folder(flags)
 
 
             requests = self.recv_from_client()
@@ -216,7 +215,7 @@ class IMAP_Client:
 
                 # External modules
                 print("Request to be processed: " + request)
-                #pycircleanmail.process(request, self.conn_server)
+                #pycircleanmail.process(request, self)
                 #misp.process(request, self.conn_server)
 
                 server_tag = self.conn_server._new_tag().decode()
@@ -256,6 +255,11 @@ class IMAP_Client:
         # Listen requests from the client
         while self.listen_client:
             listen_request_client()
+
+    def set_current_folder(self, folder):
+        if folder.startswith('"') and folder.endswith('"'):
+            folder = folder[1:-1]
+        self.current_folder = folder
 
     def send_to_client(self, str_data):
         b_data = str_data.encode() + CRLF
