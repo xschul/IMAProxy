@@ -8,16 +8,12 @@ UID_Fetch = re.compile(r'(?P<tag>[A-Z]*[0-9]+)'
     r'\s(?P<uid>[0-9:,]+)'
     r'\s(?P<flags>.*)', flags=re.IGNORECASE)
 
+# TODO: without uid
 '''Fetch = re.compile(r'(?P<tag>[A-Z]*[0-9]+)'
     r'\s(UID)'
     r'\s(FETCH)'
     r'\s(?P<uid>[0-9:,]+)'
     r'\s(?P<flags>.*)', flags=re.IGNORECASE)'''
-
-FLAGS = (
-    'BODY.PEEK[]',
-    'RFC822.TEXT'
-    )
 
 def process(request, IMAP_client):
     match = UID_Fetch.match(request)
@@ -29,6 +25,7 @@ def process(request, IMAP_client):
         uid = match.group('uid')
         flags = match.group('flags')
     else:
+        print('Not mtaching:', request)
         return
 
     print(uid, flags)
@@ -39,14 +36,6 @@ def process(request, IMAP_client):
         # Don't sanitize sent emails
         return
 
-    if not any(flag in flags for flag in FLAGS):
-        # The user don't want to fetch the body of an email
-        print('Dont want to fetch netire email:', flags)
-        return 
-    
-    print('WANTS TO FETCH ENTIRE BODY')
-
-    # TODO: if fetch 1:* ??
     if uid.isdigit():
         print('Fetch 1 email: ', uid)
         sanitize(uid, flags, conn_server)
@@ -75,7 +64,7 @@ def sanitize_list(list_uid, flags, conn_server):
 def sanitize(uid, flags, conn_server):
     conn_server.state = 'SELECTED'
     print(uid, flags)
-    result, msg_data = conn_server.uid('fetch', uid, flags)
+    result, msg_data = conn_server.uid('fetch', uid, 'BODY.PEEK[]')
 
     print('Result', result, 'with flags: ', flags)
 
