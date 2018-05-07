@@ -1,9 +1,11 @@
 import email, re, imaplib, time
-
 from io import BytesIO
 from kittengroomer_email import KittenGroomerMail
 
-_fetchUID_request = re.compile(r'\A[A-Z]*[0-9]+\s(uid)\s(fetch)\s[0-9]+', flags=re.IGNORECASE)
+UID_Fetch = re.compile(r'(?P<tag>[A-Z]*[0-9]+)'
+    r'\s(UID)'
+    r'\s(FETCH)'
+    r'\s\((?P<flags>.*)\)', flags=re.IGNORECASE)
 
 def process(request, conn_server):
     str_request = request[1]

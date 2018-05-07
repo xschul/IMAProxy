@@ -1,8 +1,8 @@
-import sys, socket, ssl, imaplib, re, base64, threading
+import sys, socket, ssl, imaplib, re, base64, threading, argparse
 from modules import pycircleanmail, misp
 
 MAX_CLIENT = 5
-HOST, IMAP_PORT, IMAP_PORT_SSL = '', 143, 993
+HOST, IMAP_PORT, IMAP_SSL_PORT = '', 143, 993
 CRLF = b'\r\n'
 
 Request = re.compile(r'(?P<tag>(?P<tag_alpha>[A-Z]*)(?P<tag_digit>[0-9]+))'
@@ -41,13 +41,22 @@ email_hostname = {
 
 class IMAP_Proxy:
 
-    def __init__(self, port, host=HOST, certfile=None, verbose=False):
+    def __init__(self, port=None, host=HOST, certfile=None, max_client=MAX_CLIENT, verbose=False):
         self.verbose = verbose
         self.certfile = certfile
 
+        if not port: # Set default port
+            if not certfile: # Without SSL/TLS
+                port = IMAP_PORT
+            else: # With SSL/TLS
+                port = IMAP_SSL_PORT
+
+        if not max_client:
+            max_client = MAX_CLIENT
+
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind((host, port))
-        self.sock.listen(MAX_CLIENT)
+        self.sock.listen(max_client)
         self.listen()
 
 
@@ -59,14 +68,9 @@ class IMAP_Proxy:
                 IMAP_Client_SLL(ssock, self.certfile, self.verbose)
 
         while True:
-            try:
-                ssock, addr = self.sock.accept()
-                threading.Thread(target = new_client, args = (ssock,)).start()
-
-            except KeyboardInterrupt:
-                break
-            except Exception as e:
-                log_error(str(e))
+            ssock, addr = self.sock.accept()
+            threading.Thread(target = new_client, args = (ssock,)).start()
+            
 
         if self.sock:
             self.sock.close()
@@ -75,18 +79,19 @@ class IMAP_Client:
 
     def __init__(self, ssock, verbose = False):
         self.verbose = verbose
-        self.listen = False
+        self.listen_client = False
         # TODO: know the current folder
 
         self.conn_client = ssock
 
-        if self.auth_server(self.auth_client()):
-            log_info("Link between server and client done")
-            self.listen = True
-            self.serve()
+        try:
+            if self.auth_server(self.auth_client()):
+                self.listen_client = True
+                self.serve()
+        except ValueError as e:
+            print('[ERROR]', e)
 
         self.close()
-        print('Stop listening')
 
     def auth_client(self):
         
@@ -100,7 +105,6 @@ class IMAP_Client:
             
             if auth_type == "LOGIN":
                 args_response = response.split(' ')
-                print(args_response)
                 username = args_response[2]
                 password = args_response[3]
 
@@ -118,6 +122,7 @@ class IMAP_Client:
             if password.startswith('"') and password.endswith('"'):
                 password = password[1:-1]
 
+            print(username, password)
             return (username, password)
 
         self.send_to_client('* OK Service Ready.')
@@ -128,8 +133,8 @@ class IMAP_Client:
 
             if not match:
                 # Not a correct request
-                log_error('Incorrect request: ' + request)
-                return None
+                raise ValueError('Error while authenticate to the client: '
+                    + request, ' contains no tag and/or no command')
 
             client_tag = match.group('tag')
             client_command = match.group('command').upper()
@@ -155,8 +160,8 @@ class IMAP_Client:
                 return get_credentials(request, auth_type)
 
             else:
-                log_error('Unknown request: ' + request)
-                return None
+                raise ValueError('Error while authenticate to the client: '
+                    + 'The command', client_command, 'not supported.')
 
     def auth_server(self, credentials):
         if not credentials:
@@ -170,7 +175,6 @@ class IMAP_Client:
         try:
             hostname = email_hostname[domain]
         except KeyError:
-            log_error('Unknown hostname')
             return False
 
         print("Trying to connect ", username)
@@ -179,16 +183,22 @@ class IMAP_Client:
 
         try:
             self.conn_server.login(username, password)
-        except Exception:
-            log_error('Invalid credentials')
-            return False
-
-        log_info('Logged in')
+        except imaplib.IMAP4.error:
+            raise ValueError('Invalid credentials')
 
         return True
 
     def serve(self):
         def listen_request_client():
+            def process_client_command(command, flags):
+                if command == 'LOGOUT':
+                    self.listen_client = False
+
+                elif command == 'SELECT':
+                    self.current_folder = flags
+                    print('CURRENT FOLDER: ', self.current_folder)
+
+
             requests = self.recv_from_client()
 
             for request in requests.split('\r\n'): # Handle multiple requests in one
@@ -196,13 +206,13 @@ class IMAP_Client:
                 request_match = Request.match(request)
 
                 if not request_match:
-                    log_error('Shouldnt happen')
+                    raise ValueError('The request contains no tag and/or no command')
 
                 client_tag = request_match.group('tag')
                 client_command = request_match.group('command').upper()
+                client_flags = request_match.group('flags')
 
-                if client_command == 'LOGOUT':
-                    self.listen = False
+                process_client_command(client_command, client_flags)
 
                 # External modules
                 print("Request to be processed: " + request)
@@ -244,7 +254,7 @@ class IMAP_Client:
                     client_sequence()
 
         # Listen requests from the client
-        while self.listen:
+        while self.listen_client:
             listen_request_client()
 
     def send_to_client(self, str_data):
@@ -253,8 +263,7 @@ class IMAP_Client:
         try:
             self.conn_client.send(b_data)
         except (BrokenPipeError, ConnectionResetError):
-            log_info('Connection reset by peer')
-            self.listen = False
+            self.listen_client = False
 
         if self.verbose: 
             print("[<--]: ", b_data)
@@ -274,8 +283,7 @@ class IMAP_Client:
         try:
             self.conn_server.send(b_data)
         except (BrokenPipeError, ConnectionResetError):
-            log_info('Connection reset by peer')
-            self.listen = False
+            self.listen_client = False
 
         if self.verbose: 
             print("  [-->]: ", b_data)
@@ -299,25 +307,17 @@ class IMAP_Client_SLL(IMAP_Client):
         try:
             self.conn_client = ssl.wrap_socket(ssock, certfile=certfile, server_side=True)
         except ssl.SSLError as e:
-            log_error(e)
             raise
 
         IMAP_Client.__init__(self, self.conn_client, verbose)
 
-def log_info(s):
-    print("[INFO]: ", s)
-
-def log_error(s):
-    RED = '\033[91m'
-    ENDC = '\033[0m'
-    print(RED, "[ERROR]: ", s, ENDC) #TODO: repalce by raise error
-
 if __name__ == '__main__':
-    #TODO: implement parser
-    verbose = True
-    if len(sys.argv) <= 1:
-        IMAP_Proxy(port=IMAP_PORT,verbose = verbose)
-    else:
-        CERT = sys.argv[1]
-        IMAP_Proxy(certfile=CERT, port=IMAP_PORT_SSL, verbose = verbose)
-    
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--certfile', help='Enable SSL/TLS connection over port 993 (by default) with the certfile given. '
+        + 'Without this argument, the connection will not use SSL/TLS over port 143 (by default)')
+    parser.add_argument('-p', '--port', type=int, help='Listen on the given port')
+    parser.add_argument('-n', '--nclient', type=int, help='Maximum number of client supported by the proxy')
+    parser.add_argument('-v', '--verbose', help='Echo IMAP payload', action='store_true')
+    args = parser.parse_args()
+
+    IMAP_Proxy(port=args.port, certfile=args.certfile, max_client=args.nclient, verbose=args.verbose)
