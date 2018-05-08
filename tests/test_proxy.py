@@ -50,6 +50,7 @@ def run_tests(conn_proxy, username, password):
         if not uid: 
             continue
 
+        # uid[-1] is the last email received -> it should be a sanitized email
         result = run('uid', ('FETCH', '%s' % uid[-1].decode(),
                 '(FLAGS INTERNALDATE RFC822.SIZE RFC822.HEADER RFC822.TEXT)'))
         mail = result[0][1]
@@ -70,6 +71,8 @@ if __name__ == '__main__':
     parser.add_argument('password', help='Password of the user')
     parser.add_argument('ip_proxy', help='Ip address of the proxy')
     args = parser.parse_args()
+
+    # TODO: with and without the sanitizer
 
     try:
         print("Try to connect to the proxy without SSL/TLS")

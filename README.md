@@ -17,8 +17,9 @@ Clone this repository, install and run the proxy.
 
 ```
 git clone https://github.com/xschul/IMAProxy.git
+cd IMAProxy
 pip3 install -r requirements.txt
-python3 proxy/proxy.py
+python3 proxy/proxy.py -h
 ```
 
 ### Run with Thunderbird
@@ -28,7 +29,8 @@ First, open [Thunderbird](https://www.mozilla.org/en-US/thunderbird/), right-cli
 ### Run the tests
 
 ```
-python3 tests/test.py $userAccount $password $ip_proxy
+python3 tests/test_proxy.py -h
+python3 tests/test_proxy.py $username $password $ip_proxy
 ```
 
 ## Authors
