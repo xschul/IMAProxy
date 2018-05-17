@@ -1,4 +1,4 @@
-import sys, socket, ssl, imaplib, re, base64, threading, oauth2, argparse, dns.resolver
+import sys, socket, ssl, imaplib, re, base64, threading, oauth2, argparse
 from modules import pycircleanmail, misp
 
 MAX_CLIENT = 5
@@ -94,7 +94,7 @@ class IMAP_Client:
 
     def auth_client(self):
         
-        def ok(tag, command):
+        def success(tag, command):
             """ Build the OK response to a specific command with the corresponding tag
             """
             return tag + ' OK ' + command + ' completed.'
@@ -143,18 +143,18 @@ class IMAP_Client:
 
                 capability_command = '* CAPABILITY ' + ' '.join(cap for cap in capability_flags) + ' +' 
                 self.send_to_client(capability_command)
-                self.send_to_client(ok(client_tag, client_command))
+                self.send_to_client(success(client_tag, client_command))
 
             elif client_command == 'AUTHENTICATE':
                 auth_type = match.group('flags')
                 self.send_to_client('+')
                 request = self.recv_from_client()
-                self.send_to_client(ok(client_tag, client_command))
+                self.send_to_client(success(client_tag, client_command))
                 return get_credentials(request, auth_type)
 
             elif client_command == 'LOGIN':
                 auth_type = client_command
-                self.send_to_client(ok(client_tag, client_command))
+                self.send_to_client(success(client_tag, client_command))
                 return get_credentials(request, auth_type)
 
             else:
@@ -234,7 +234,7 @@ class IMAP_Client:
                 response = self.recv_from_server()
                 response_match = Response.match(response)
 
-                if response_match: # ok response
+                if response_match: # success response
                     server_response_tag = response_match.group('tag')
                     server_command = response_match.group('command').upper()
                     if (client_command == server_command) and (server_tag == server_response_tag):
@@ -299,9 +299,21 @@ class IMAP_Client:
 
         return str_response
 
-    def close(self):
+    def logout_server(self):
+        self.listen_server = False
+        if self.conn_server:
+            conn_server.close()
+            conn_server.logout()
+
+    def bye_client(self):
+        self.listen_client = False
         if self.conn_client:
+            send_to_client('* BYE IMAP4rev1 Proxy logging out')
             self.conn_client.close()
+
+    def close(self):
+        logout_server()
+        bye_client()
 
 class IMAP_Client_SLL(IMAP_Client):
 

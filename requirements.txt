@@ -1,7 +1,6 @@
 twiggy
 olefile
 oauth2
-dnspython
 python-dateutil
 python-magic
 git+https://github.com/Rafiot/officedissector.git
