@@ -17,14 +17,14 @@ Fetch = re.compile(r'(?P<tag>[A-Z]*[0-9]+)'
 # Default Quarantine folder
 QUARANTINE_FOLDER = 'Quarantine'
 
-def process(request, IMAP_client):
+def process(client):
     """ Apply the PyCIRCLeanMail module if the request match with a Fetch request
 
         request - Request from the cleint (str format)
-        IMAP_client - IMAP_Client object
+        client - IMAP_Client object
 
     """
-
+    request = client.request
     match_uid = UID_Fetch.match(request)
     match = Fetch.match(request) # without uid
     uid_command = False
@@ -38,13 +38,14 @@ def process(request, IMAP_client):
     else:
         return
 
-    conn_server = IMAP_client.conn_server
-    folder = IMAP_client.current_folder
+    conn_server = client.conn_server
+    folder = client.current_folder
 
     create_quarantine_folder(conn_server)
 
     if 'SENT' in folder.upper():
         # Don't sanitize sent emails
+        print('IN')
         return
 
     if uid.isdigit(): 
@@ -75,8 +76,11 @@ def sanitize(uid, conn_server, folder=None, uid_command=True):
         return
 
     mail = email.message_from_string(bmail.decode('utf-8'))
+
+    print(mail)
+
     if not mail.get('CIRCL-Sanitizer'):
-        # EMail not yet sanitized
+        # Email not yet sanitized
 
         date_str = mail.get('Date')
         if date_str:

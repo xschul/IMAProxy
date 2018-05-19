@@ -16,15 +16,13 @@ Request = re.compile(r'(?P<tag>[A-Z]*[0-9]+)'
 Response= re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)'
     r'\s(OK)'
     r'(\s\[(?P<flags>.*)\])?'
-    r'\s(?P<command>[A-Z]*)'
-    r'\s(completed)', flags=re.IGNORECASE)
+    r'\s(?P<command>[A-Z]*)', flags=re.IGNORECASE)
 
 # Capabilities of the proxy
 CAPABILITIES = ( 
     'IMAP4',
     'IMAP4rev1',
     'AUTH=PLAIN',
-#    'AUTH=XOAUTH2', 
     'SASL-IR',
     'UIDPLUS',
     'MOVE',
@@ -39,8 +37,18 @@ CAPABILITIES = (
 email_hostname = {
     'hotmail': 'imap-mail.outlook.com',
     'outlook': 'imap-mail.outlook.com',
-    'yahoo': 'imap.mail.yahoo.com'
+    'yahoo': 'imap.mail.yahoo.com',
+    'gmail': 'imap.gmail.com'
 }
+
+Commands = (
+    'authenticate',
+    'capability',
+    'login',
+    'logout',
+    'select',
+    'fetch'
+)
 
 class IMAP_Proxy:
     
@@ -80,8 +88,8 @@ class IMAP_Proxy:
 
 
     def listen(self):
-        """ Wait and create a new IMAP_Client for each client.
-        """
+        """ Wait and create a new IMAP_Client for each client. """
+
         def new_client(ssock):
             if not self.certfile: # Connection without SSL/TLS
                 IMAP_Client(ssock, self.verbose)
@@ -100,130 +108,89 @@ class IMAP_Proxy:
 
 class IMAP_Client:
 
-    r""" IMAP_Client class.
-
-    Instantiate with: IMAP_Client([ssock[, verbose]])
-
-        ssock - Socket with the client;
-        verbose - Display the IMAP payload (default: False)
-
-    1. Connect the client and the proxy using connect_client() method
-    2. Connect the proxy and the server using connect_server() method
-    3. Transmit commands and responses from the client to the server.
-    Each time a command is received from the client, process it by the
-    pycircleanmail and misp modules.
-    """
-
     def __init__(self, ssock, verbose = False):
         self.verbose = verbose
-        self.listen_client = False # True if the proxy is connected to the client and proxy
         self.conn_client = ssock
+        self.conn_server = None
 
         try:
-            if self.connect_server(self.connect_client()):
-                self.listen_client = True
-                self.serve()
+            self.send_to_client('* OK Service Ready.')
+            self.listen_client()
         except ValueError as e:
             print('[ERROR]', e)
 
         self.close()
 
-    def connect_client(self):
-        """ Connect the client with the proxy.
-        First, exchange capabilities in the CAPABILITIES global variable. 
-        Second, retrieve the credentials of the client using AUTHENTICATE and/or LOGIN
-        commands sent by the client.
+    #       Listen client/server and connect server
 
-        Return the credentials (tuple of string (username, password)) of the client.
+    def listen_client(self):
+        while self.listen_client:
+            for request in self.recv_from_client().split('\r\n'):
 
-        Raise an error if the request received is not a command or if the command is not
-        supported (different from CAPABILITY, AUTHENTICATE or LOGIN).
-        """
+                match = Request.match(request)
 
-        def success(tag, command):
-            # Build the OK response to a specific command with the corresponding tag
-            return tag + ' OK ' + command + ' completed.'
+                if not match:
+                    # Not a correct request
+                    self.error('Incorrect request')
+                    raise ValueError('Error while listening the client: '
+                        + request + ' contains no tag and/or no command')
 
-        def get_credentials(request, auth_type):
-            # Return the credentials contained in the request depending the authentication type
-            if auth_type == "LOGIN":
-                args_response = request.split(' ')
-                username = args_response[2]
-                password = args_response[3]
+                self.client_tag = match.group('tag')
+                self.client_command = match.group('command').lower()
+                self.client_flags = match.group('flags')
+                self.request = request
 
-            elif auth_type == "PLAIN":
-                dec_response = base64.b64decode(request).split(b'\x00')
-                username = dec_response[1].decode()
-                password = dec_response[2].decode()
+                if self.client_command in Commands: 
+                    getattr(self, self.client_command)()
+                else:
+                    self.transmit()
 
-            elif auth_type == "XOAUTH2":
-                pass # TODO
+    def transmit(self):
+        server_tag = self.conn_server._new_tag().decode()
+        self.send_to_server(self.request.replace(self.client_tag, server_tag, 1))
+        self.listen_server(server_tag)
+                
+    def listen_server(self, server_tag):
 
-            if username.startswith('"') and username.endswith('"'):
-                username = username[1:-1]
+        response = self.recv_from_server()
+        response_match = Response.match(response)
 
-            if password.startswith('"') and password.endswith('"'):
-                password = password[1:-1]
+        #   Command completion response
+        if response_match: 
+            server_response_tag = response_match.group('tag')
+            server_command = response_match.group('command').lower()
+            if server_tag == server_response_tag:
+                # Verifiy the command completion corresponds to the client command
+                self.send_to_client(response.replace(server_response_tag, self.client_tag, 1))
+                return 
+        
+        #   Untagged or continuation response
+        self.send_to_client(response)
 
-            return (username, password)
+        if response.startswith('+') and self.client_command.upper() != 'FETCH':
+            # The response starts with '+' -> the client will send a sequence of request (continuation)
+            # Don't start the client sequence if an email is fetched (the '+' is contained in an email)
+            client_sequence = self.recv_from_client()
+            while client_sequence != '': # Client sequence ends with empty request
+                self.send_to_server(client_sequence)
+                client_sequence = self.recv_from_client()
+            self.send_to_server(client_sequence)
 
-        self.send_to_client('* OK Service Ready.')
+        return self.listen_server(server_tag)
 
-        while True:
-            request = self.recv_from_client()
-            match = Request.match(request)
+    def connect_server(self, username, password):
+        username = self.remove_quotation_marks(username)
+        password = self.remove_quotation_marks(password)
 
-            if not match:
-                # Not a correct request
-                raise ValueError('Error while connecting to the client: '
-                    + request, ' contains no tag and/or no command')
-
-            client_tag = match.group('tag')
-            client_command = match.group('command').upper()
-
-            if client_command == 'CAPABILITY':
-                capability_command = '* CAPABILITY ' + ' '.join(cap for cap in CAPABILITIES) + ' +' 
-                self.send_to_client(capability_command)
-                self.send_to_client(success(client_tag, client_command))
-
-            elif client_command == 'AUTHENTICATE':
-                auth_type = match.group('flags')
-                self.send_to_client('+')
-                request = self.recv_from_client()
-                self.send_to_client(success(client_tag, client_command))
-                return get_credentials(request, auth_type)
-
-            elif client_command == 'LOGIN':
-                auth_type = client_command
-                self.send_to_client(success(client_tag, client_command))
-                return get_credentials(request, auth_type)
-
-            else:
-                raise ValueError('Error while connecting to the client: '
-                    + 'The command', client_command, 'not supported.')
-
-    def connect_server(self, credentials):
-        """ Connect the proxy with the server using the credentials.
-
-            credentials - Tuple of string containing an username and a password
-
-        Return True if the proxy is correctly connected to the server.
-
-        Raise a ValueError if the credentials are invalid.
-        """
-
-        if not credentials:
-            return False
-
-        username = credentials[0]
-        password = credentials[1]
         domains = username.split('@')[1].split('.')[:-1] # Remove before '@' and remove '.com' / '.be' / ...
         domain = ' '.join(str(d) for d in domains) 
 
         try:
             hostname = email_hostname[domain]
         except KeyError:
-            return False
+            self.send_to_client(self.error('Unknown hostname'))
+            raise ValueError('Error while connecting to the server: '
+                    + 'Invalid domain name '+ domain)
 
         print("Trying to connect ", username)
         self.conn_server = imaplib.IMAP4_SSL(hostname)
@@ -231,109 +198,50 @@ class IMAP_Client:
         try:
             self.conn_server.login(username, password)
         except imaplib.IMAP4.error:
-            raise ValueError('Invalid credentials')
+            self.send_to_client(self.failure())
+            raise ValueError('Error while connecting to the server: '
+                    + 'Invalid credentials: ' + username + " / " + password)
 
-        return True
+        self.send_to_client(self.success())
 
-    def serve(self):
-        """ Listen requests from the client, transmit to the server, listen response
-        from the server and transmit to the client.
+    #       Supported IMAP commands
 
-        Raise a ValueError if the client sends an incorrect request.
-        """
+    def capability(self):
+        self.send_to_client('* CAPABILITY ' + ' '.join(cap for cap in CAPABILITIES) + ' +')
+        self.send_to_client(self.success())
 
-        def listen_request_client():
-            # Handle a request from the client
+    def authenticate(self):
+        auth_type = self.client_flags.split(' ')[0].lower()
+        getattr(self, self.client_command+"_"+auth_type)()
 
-            def process_client_command(command, flags):
-                # Handle particular commands from the client
+    def authenticate_plain(self):
+        self.send_to_client('+')
+        request = self.recv_from_client()
+        (empty, busername, bpassword) = base64.b64decode(request).split(b'\x00')
+        username = busername.decode()
+        password = bpassword.decode()
+        self.connect_server(username, password)
 
-                if command == 'LOGOUT':
-                    self.listen_client = False
+    def login(self):
+        (username, password) = self.client_flags.split(' ')
+        self.connect_server(username, password)
 
-                elif command == 'SELECT':
-                    self.set_current_folder(flags)
+    def logout(self):
+        self.listen_client = False
+        self.transmit()
 
+    def select(self):
+        self.set_current_folder(self.client_flags)
+        self.transmit()
 
-            requests = self.recv_from_client()
-            for request in requests.split('\r\n'): # Handle multiple requests in one
+    def fetch(self):
+        pycircleanmail.process(self)
+        misp.process(self)
+        self.transmit()
 
-                request_match = Request.match(request)
-                if not request_match:
-                    raise ValueError('Error while serving: '
-                        + 'The request contains no tag and/or no command')
-
-                client_tag = request_match.group('tag')
-                client_command = request_match.group('command').upper()
-                client_flags = request_match.group('flags')
-
-                process_client_command(client_command, client_flags)
-
-                # External modules
-                pycircleanmail.process(request, self)
-                misp.process(request, self)
-
-                # Replace the client tag by the next server tag
-                server_tag = self.conn_server._new_tag().decode()
-                self.send_to_server(request.replace(client_tag, server_tag, 1))
-                
-                listen_response_server(client_tag, client_command, server_tag)
-
-        def listen_response_server(client_tag, client_command, server_tag):
-            # Handle the response from the server
-
-            def client_sequence():
-                # Listen client requests when the server response starts with '+'
-                client_sequence = self.recv_from_client()
-                while client_sequence != '': # Client sequence ends with empty request
-                    self.send_to_server(client_sequence)
-                    client_sequence = self.recv_from_client()
-                self.send_to_server(client_sequence)
-
-            listen_server = True
-            while listen_server:
-                response = self.recv_from_server()
-                response_match = Response.match(response)
-
-                if response_match: # success response
-                    server_response_tag = response_match.group('tag')
-                    server_command = response_match.group('command').upper()
-                    if (client_command == server_command) and (server_tag == server_response_tag):
-                        # Transmit tag response and listen next client command
-                        self.send_to_client(response.replace(server_response_tag, client_tag, 1))
-                        listen_server = False
-                    else:
-                        # Counter injection attempt 
-                        # (the server sent a response but the command and/or the tag don't match
-                        # with the client request)
-                        self.send_to_client(response)
-
-                else:
-                    # Transmit untagged response
-                    self.send_to_client(response)
-
-                if response.startswith('+') and client_command != 'FETCH':
-                    # The response starts with '+' -> the client will send a sequence of request
-                    # Don't start the client sequence if an email is fetched (the '+' is contained in an email)
-                    client_sequence()
-
-        # Listen requests from the client
-        while self.listen_client:
-            listen_request_client()
-
-    def set_current_folder(self, folder):
-        """ Set the current folder of the client """
-        if folder.startswith('"') and folder.endswith('"'):
-            folder = folder[1:-1]
-        self.current_folder = folder
+    #       Sending and receiving
 
     def send_to_client(self, str_data):
-        """ Send request to the client
-
-            str_data - String without CRLF
-
-        Stop listening the client if the connection with the client is broken/reset
-        """
 
         b_data = str_data.encode() + CRLF
 
@@ -385,21 +293,34 @@ class IMAP_Client:
 
         return str_response
 
-    def logout_server(self):
-        self.listen_server = False
-        if self.conn_server:
-            conn_server.close()
-            conn_server.logout()
+    #       Utils
 
-    def bye_client(self):
-        self.listen_client = False
-        if self.conn_client:
-            send_to_client('* BYE IMAP4rev1 Proxy logging out')
-            self.conn_client.close()
+    def set_current_folder(self, folder):
+        """ Set the current folder of the client """
+        self.current_folder = self.remove_quotation_marks(folder)
+
+    def remove_quotation_marks(self, text):
+        if text.startswith('"') and text.endswith('"'):
+            text = text[1:-1]
+        return text
+
+    def success(self):
+        """ Success command completing response of the command with the corresponding tag """
+        return self.client_tag + ' OK ' + self.client_command + ' completed.'
+
+    def failure(self):
+        """ Failure command completing response """
+        return self.client_tag + ' NO ' + self.client_command + ' failed.'
+
+    def error(self, msg):
+        """ Error command completing response """
+        return self.client_tag + ' BAD ' + msg
 
     def close(self):
-        logout_server()
-        bye_client()
+        """ Close connection with the client """
+        if self.conn_client:
+            self.conn_client.close()
+    
 
 class IMAP_Client_SLL(IMAP_Client):
     r""" IMAP_Client class over SSL connection

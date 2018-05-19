@@ -14,7 +14,8 @@ Move = re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)'
     r'\s(?P<uid>[0-9]+)'
     r'\s' + re.escape(MISP_FOLDER), flags=re.IGNORECASE)
 
-def process(request, IMAP_client):
+def process(client):
+    request = client.request
     match = Move.match(request)
     match_uid = UID_Move.match(request)
     uid_command = False
@@ -29,8 +30,8 @@ def process(request, IMAP_client):
     else:
         return
 
-    conn_server = IMAP_client.conn_server
-    folder = IMAP_client.current_folder
+    conn_server = client.conn_server
+    folder = client.current_folder
 
     if uid.isdigit():
         forward_to_misp(uid, conn_server, folder, uid_command)
