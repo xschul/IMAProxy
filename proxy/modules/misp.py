@@ -1,15 +1,15 @@
 import re
-from .utils import convert_uids_str_to_list, fetch
+from .utils import parse_ids
 
 MISP_FOLDER = '\"MISP\"'
 
-UID_Move = re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)'
+UID_Move = re.compile(r'\A(?P<tag>[A-Z0-9]+)'
     r'\s(UID)'
     r'\s(MOVE)'
     r'\s(?P<uid>[0-9]+)'
     r'\s' + re.escape(MISP_FOLDER), flags=re.IGNORECASE)
 
-Move = re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)'
+Move = re.compile(r'\A(?P<tag>[A-Z0-9]+)'
     r'\s(MOVE)'
     r'\s(?P<uid>[0-9]+)'
     r'\s' + re.escape(MISP_FOLDER), flags=re.IGNORECASE)
@@ -41,9 +41,9 @@ def process(client):
             forward_to_misp(uid, conn_server, folder, uid_command)
 
 def forward_to_misp(uid, conn_server, folder, uid_command):
-    bmail = fetch(uid, conn_server, folder, uid_command)
+    '''bmail = fetch(uid, conn_server, folder, uid_command)
 
     if not bmail:
-        return
+        return'''
 
     print('IN MISP MODULE')

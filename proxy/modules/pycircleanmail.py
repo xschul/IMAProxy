@@ -1,21 +1,26 @@
 import email, re, imaplib, time
-from .utils import convert_uids_str_to_list, fetch
+from .utils import parse_ids
 from io import BytesIO
 from kittengroomer_email import KittenGroomerMail
 
-UID_Fetch = re.compile(r'(?P<tag>[A-Z]*[0-9]+)'
-    r'\s(UID)'
+Fetch = re.compile(r'(?P<tag>[A-Z0-9]+)'
+    r'(\s(UID))?'
     r'\s(FETCH)'
-    r'\s(?P<uid>[0-9:,]+)'
-    r'\s(?P<flags>.*)', flags=re.IGNORECASE)
-
-Fetch = re.compile(r'(?P<tag>[A-Z]*[0-9]+)'
-    r'\s(FETCH)'
-    r'\s(?P<uid>[0-9:,]+)'
+    r'\s(?P<ids>[0-9:,]+)'
     r'\s(?P<flags>.*)', flags=re.IGNORECASE)
 
 # Default Quarantine folder
 QUARANTINE_FOLDER = 'Quarantine'
+
+# Sanitizer header and values
+SIGNATURE = 'CIRCL-Sanitizer'
+VALUE_ORIGINAL = 'Original'
+VALUE_SANITIZED= 'Sanitized'
+
+# Message data used to get the flags and sanitizer header
+MSG_DATA_FS = '(FLAGS BODY.PEEK[HEADER.FIELDS (' + SIGNATURE + ')])'
+# Message data used to get the entire mail
+MSG_DATA = 'BODY.PEEK[]'
 
 def process(client):
     """ Apply the PyCIRCLeanMail module if the request match with a Fetch request
@@ -25,96 +30,72 @@ def process(client):
 
     """
     request = client.request
-    match_uid = UID_Fetch.match(request)
-    match = Fetch.match(request) # without uid
-    uid_command = False
-
-    # Email is fetched using UID fetch command
-    if match:
-        uid = match.group('uid')
-    elif match_uid:
-        uid = match_uid.group('uid')
-        uid_command = True
-    else:
-        return
-
     conn_server = client.conn_server
     folder = client.current_folder
 
-    create_quarantine_folder(conn_server)
+    uidc = True if 'UID' in request else False
 
-    if 'SENT' in folder.upper():
-        # Don't sanitize sent emails
-        print('IN')
-        return
+    match = Fetch.match(request)
+    if not match: return # Client discovers new emails
+    ids = match.group('ids')
 
-    if uid.isdigit(): 
-        # Only one email is fetched
-        sanitize(uid, conn_server, folder, uid_command)
+    if ids.isdigit(): 
+        # Only one email fetched
+        sanitize(ids, conn_server, folder, uidc)
     else:
-        # Multiple emails are fetched (uid format: [0-9,:])
-        uids = convert_uids_str_to_list(uid) 
-        # (uids is a list of digits)
-        for uid in uids:
-            sanitize(str(uid), conn_server, folder, uid_command)
+        # Multiple emails are fetched (ids format: [0-9,:])
+        for id in parse_ids(ids):
+            sanitize(str(id), conn_server, folder, uidc) 
+            
 
-def sanitize(uid, conn_server, folder=None, uid_command=True):
+def sanitize(id, conn_server, folder, uidc):
     """ Sanitize, if necessary, an email.
 
-        uid - String containing the uid of the email;
+        ids - String containing the ids of the email;
         conn_server - Socket to the server;
-        folder - Only necessary if uid_command is False (default: None);
-        uid_command - True if command contains UID flag
+        folder - Current folder of the client;
+        uidc - True if command contains UID flag
 
     If the email is not sanitized yet, make a sanitized copy if the same folder
     and an unsanitized copy if the Quarantine folder. The original email is deleted
     """
 
-    bmail = fetch(uid, conn_server, folder, uid_command)
+    conn_server.state = 'SELECTED'
+    result, response = conn_server.uid('fetch', id, MSG_DATA_FS) if uidc else conn_server.fetch(id, MSG_DATA_FS)
 
-    if not bmail: # Email no longer exists
+    if result == 'OK' and response[0]:
+        [(flags, signature), ids] = response
+        if SIGNATURE.encode() in signature:
+            return
+
+    # Message unseen or no CIRCL header
+    conn_server.select(folder)
+    result, response = conn_server.uid('fetch', id, MSG_DATA) if uidc else conn_server.fetch(id, MSG_DATA)
+
+    if result == 'OK' and response != [b'The specified message set is invalid.'] and response != [None]:
+        bmail = response[0][1]
+    else:
         return
 
-    mail = email.message_from_string(bmail.decode('utf-8'))
+    # Process email with the module
+    t = KittenGroomerMail(bmail)
+    m = t.process_mail()
+    content = BytesIO(m.as_bytes())
 
-    print(mail)
+    # Get the DATE of the email
+    mail = email.message_from_bytes(bmail)
+    date_str = mail.get('Date')
+    date = imaplib.Internaldate2tuple(date_str.encode()) if date_str else imaplib.Time2Internaldate(time.time())
+    
+    # Copy of the sanitized email
+    smail = email.message_from_bytes(content.getvalue())
+    smail.add_header(SIGNATURE, VALUE_SANITIZED)
+    conn_server.append(folder, '', date, str(smail).encode())
 
-    if not mail.get('CIRCL-Sanitizer'):
-        # Email not yet sanitized
+    # Copy of the original email
+    mail.add_header(SIGNATURE, VALUE_ORIGINAL)
+    conn_server.append(QUARANTINE_FOLDER, '', date, bmail)
 
-        date_str = mail.get('Date')
-        if date_str:
-            date = imaplib.Internaldate2tuple(date_str.encode())
-        else:
-            # Default time is the current time
-            date = imaplib.Time2Internaldate(time.time())
-
-        # Process email with the module
-        t = KittenGroomerMail(bmail)
-        m = t.process_mail()
-        content = BytesIO(m.as_bytes())
-
-        # Copy of the original email
-        # TODO: insert hash
-        mail.add_header('CIRCL-Sanitizer', 'Original')
-        conn_server.append(QUARANTINE_FOLDER, '', date, str(mail).encode())
-
-        # Copy of the sanitized email
-        sanitized_email = email.message_from_string(content.getvalue().decode('utf-8'))
-        sanitized_email.add_header('CIRCL-Sanitizer', 'Sanitized')
-        conn_server.append(folder, '', date, str(sanitized_email).encode())
-
-        # Delete original
-        if uid_command:
-            mov, data = conn_server.uid('STORE', uid, '+FLAGS', '(\Deleted)')
-        else:
-            mov, data = conn_server.store(uid, '+FLAGS', '(\Deleted)')
-        conn_server.expunge()
-
-def create_quarantine_folder(conn_server):
-    """ Create the Quarantine folder 
-
-        conn_server - Socket to the server
-    """
-
-    typ, create = conn_server.create(QUARANTINE_FOLDER)
+    # Delete original
+    conn_server.uid('STORE', id, '+FLAGS', '(\Deleted)') if uidc else conn_server.store(id, '+FLAGS', '(\Deleted)')
+    conn_server.expunge()

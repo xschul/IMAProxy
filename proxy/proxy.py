@@ -1,4 +1,4 @@
-import sys, socket, ssl, imaplib, re, base64, threading, oauth2, argparse
+import sys, socket, ssl, re, base64, threading, oauth2, argparse, imaplib
 from modules import pycircleanmail, misp
 
 # Default maximum number of client supported by the proxy
@@ -8,12 +8,12 @@ IMAP_PORT, IMAP_SSL_PORT = 143, 993
 CRLF = b'\r\n'
 
 # Tagged request from the client
-Request = re.compile(r'(?P<tag>[A-Z]*[0-9]+)'
+Request = re.compile(r'(?P<tag>[A-Z0-9]+)'
     r'(\s(UID))?'
     r'\s(?P<command>[A-Z]*)'
     r'(\s(?P<flags>.*))?', flags=re.IGNORECASE)
 # Tagged response from the server
-Response= re.compile(r'\A(?P<tag>[A-Z]*[0-9]+)'
+Response= re.compile(r'\A(?P<tag>[A-Z0-9]+)'
     r'\s(OK)'
     r'(\s\[(?P<flags>.*)\])?'
     r'\s(?P<command>[A-Z]*)', flags=re.IGNORECASE)
@@ -47,6 +47,7 @@ Commands = (
     'login',
     'logout',
     'select',
+    'move',
     'fetch'
 )
 
@@ -116,8 +117,8 @@ class IMAP_Client:
         try:
             self.send_to_client('* OK Service Ready.')
             self.listen_client()
-        except ValueError as e:
-            print('[ERROR]', e)
+        except (BrokenPipeError, ConnectionResetError):
+            print('Connections closed')
 
         self.close()
 
@@ -139,6 +140,7 @@ class IMAP_Client:
                 self.client_command = match.group('command').lower()
                 self.client_flags = match.group('flags')
                 self.request = request
+                self.list_server = True
 
                 if self.client_command in Commands: 
                     getattr(self, self.client_command)()
@@ -151,32 +153,31 @@ class IMAP_Client:
         self.listen_server(server_tag)
                 
     def listen_server(self, server_tag):
+        while self.list_server:
+            response = self.recv_from_server()
+            response_match = Response.match(response)
 
-        response = self.recv_from_server()
-        response_match = Response.match(response)
+            #   Command completion response
+            if response_match: 
+                server_response_tag = response_match.group('tag')
+                server_command = response_match.group('command').lower()
+                if server_tag == server_response_tag:
+                    # Verifiy the command completion corresponds to the client command
+                    self.list_server = False
+                    self.send_to_client(response.replace(server_response_tag, self.client_tag, 1))
+                    return 
+            
+            #   Untagged or continuation response
+            self.send_to_client(response)
 
-        #   Command completion response
-        if response_match: 
-            server_response_tag = response_match.group('tag')
-            server_command = response_match.group('command').lower()
-            if server_tag == server_response_tag:
-                # Verifiy the command completion corresponds to the client command
-                self.send_to_client(response.replace(server_response_tag, self.client_tag, 1))
-                return 
-        
-        #   Untagged or continuation response
-        self.send_to_client(response)
-
-        if response.startswith('+') and self.client_command.upper() != 'FETCH':
-            # The response starts with '+' -> the client will send a sequence of request (continuation)
-            # Don't start the client sequence if an email is fetched (the '+' is contained in an email)
-            client_sequence = self.recv_from_client()
-            while client_sequence != '': # Client sequence ends with empty request
-                self.send_to_server(client_sequence)
+            if response.startswith('+') and self.client_command.upper() != 'FETCH':
+                # The response starts with '+' -> the client will send a sequence of request (continuation)
+                # Don't start the client sequence if an email is fetched (the '+' is contained in an email)
                 client_sequence = self.recv_from_client()
-            self.send_to_server(client_sequence)
-
-        return self.listen_server(server_tag)
+                while client_sequence != '': # Client sequence ends with empty request
+                    self.send_to_server(client_sequence)
+                    client_sequence = self.recv_from_client()
+                self.send_to_server(client_sequence)
 
     def connect_server(self, username, password):
         username = self.remove_quotation_marks(username)
@@ -234,9 +235,13 @@ class IMAP_Client:
         self.set_current_folder(self.client_flags)
         self.transmit()
 
+    def move(self):
+        #misp.process(self)
+        self.transmit()
+
     def fetch(self):
-        pycircleanmail.process(self)
-        misp.process(self)
+        if 'SENT' not in self.current_folder.upper():
+            pycircleanmail.process(self)
         self.transmit()
 
     #       Sending and receiving
@@ -244,11 +249,7 @@ class IMAP_Client:
     def send_to_client(self, str_data):
 
         b_data = str_data.encode() + CRLF
-
-        try:
-            self.conn_client.send(b_data)
-        except (BrokenPipeError, ConnectionResetError):
-            self.listen_client = False
+        self.conn_client.send(b_data)
 
         if self.verbose: 
             print("[<--]: ", b_data)
@@ -273,11 +274,7 @@ class IMAP_Client:
         """
 
         b_data = str_data.encode() + CRLF
-
-        try:
-            self.conn_server.send(b_data)
-        except (BrokenPipeError, ConnectionResetError):
-            self.listen_client = False
+        self.conn_server.send(b_data)
 
         if self.verbose: 
             print("  [-->]: ", b_data)
