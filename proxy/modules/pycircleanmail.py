@@ -13,9 +13,10 @@ Fetch = re.compile(r'(?P<tag>[A-Z0-9]+)'
 QUARANTINE_FOLDER = 'Quarantine'
 
 # Sanitizer header and values
-SIGNATURE = 'CIRCL-Sanitizer'
+SIGNATURE = 'X-CIRCL-Sanitizer'
 VALUE_ORIGINAL = 'Original'
 VALUE_SANITIZED= 'Sanitized'
+VALUE_ERROR= 'Error'
 
 # Message data used to get the flags and sanitizer header
 MSG_DATA_FS = '(FLAGS BODY.PEEK[HEADER.FIELDS (' + SIGNATURE + ')])'
@@ -32,6 +33,9 @@ def process(client):
     request = client.request
     conn_server = client.conn_server
     folder = client.current_folder
+
+    # Don't sanitize sent or quarantine emails
+    if 'SENT' in folder.upper() or QUARANTINE_FOLDER in folder or 'Deleted' in folder: return
 
     uidc = True if 'UID' in request else False
 
@@ -63,11 +67,21 @@ def sanitize(id, conn_server, folder, uidc):
     conn_server.state = 'SELECTED'
     result, response = conn_server.uid('fetch', id, MSG_DATA_FS) if uidc else conn_server.fetch(id, MSG_DATA_FS)
 
+    print('In folder', folder)
+    print('Result1: ', response)
+
     if result == 'OK' and response[0]:
-        [(flags, signature), ids] = response
-        if SIGNATURE.encode() in signature:
+        try:
+            [(flags, signature), ids] = response
+        except ValueError:
+            # Not correct answer
             return
 
+        if SIGNATURE.encode() in signature:
+            print('Already sanitized')
+            return
+
+    print('Not sanitized')
     # Message unseen or no CIRCL header
     conn_server.select(folder)
     result, response = conn_server.uid('fetch', id, MSG_DATA) if uidc else conn_server.fetch(id, MSG_DATA)
@@ -77,20 +91,39 @@ def sanitize(id, conn_server, folder, uidc):
     else:
         return
 
-    # Process email with the module
-    t = KittenGroomerMail(bmail)
-    m = t.process_mail()
-    content = BytesIO(m.as_bytes())
-
     # Get the DATE of the email
     mail = email.message_from_bytes(bmail)
     date_str = mail.get('Date')
     date = imaplib.Internaldate2tuple(date_str.encode()) if date_str else imaplib.Time2Internaldate(time.time())
-    
+
+    # Process email with the module
+    try:
+        t = KittenGroomerMail(bmail)
+        m = t.process_mail()
+        content = BytesIO(m.as_bytes())
+    except Exception:
+        # Often ValueError in BytesIO
+        smail = email.message_from_bytes(bmail)
+        print("-- Can't sanitize this email: --")
+        print(smail)
+        print("--------------------------------")
+        smail.add_header(SIGNATURE, VALUE_ERROR)
+        conn_server.append(folder, '', date, str(smail).encode())
+        return
+
     # Copy of the sanitized email
-    smail = email.message_from_bytes(content.getvalue())
-    smail.add_header(SIGNATURE, VALUE_SANITIZED)
-    conn_server.append(folder, '', date, str(smail).encode())
+    try:
+        smail = email.message_from_bytes(content.getvalue())
+        smail.add_header(SIGNATURE, VALUE_SANITIZED)
+        conn_server.append(folder, '', date, str(smail).encode())
+    except Exception as e:
+        # Often KeyError in content.getvalue()
+        print("-- Error: ", e, " --")
+        print(content.getvalue())
+        print("--------------------------------")
+        smail = email.message_from_bytes(bmail)
+        smail.add_header(SIGNATURE, VALUE_ERROR)
+        conn_server.append(folder, '', date, str(smail).encode())
 
     # Copy of the original email
     mail.add_header(SIGNATURE, VALUE_ORIGINAL)

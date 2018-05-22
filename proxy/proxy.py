@@ -119,6 +119,8 @@ class IMAP_Client:
             self.listen_client()
         except (BrokenPipeError, ConnectionResetError):
             print('Connections closed')
+        '''except ValueError as e:
+            print('[ERROR]', e)'''
 
         self.close()
 
@@ -126,7 +128,7 @@ class IMAP_Client:
 
     def listen_client(self):
         while self.listen_client:
-            for request in self.recv_from_client().split('\r\n'):
+            for request in self.recv_from_client().split('\r\n'): # In case of multiple requests
 
                 match = Request.match(request)
 
@@ -140,7 +142,6 @@ class IMAP_Client:
                 self.client_command = match.group('command').lower()
                 self.client_flags = match.group('flags')
                 self.request = request
-                self.list_server = True
 
                 if self.client_command in Commands: 
                     getattr(self, self.client_command)()
@@ -153,7 +154,7 @@ class IMAP_Client:
         self.listen_server(server_tag)
                 
     def listen_server(self, server_tag):
-        while self.list_server:
+        while True:
             response = self.recv_from_server()
             response_match = Response.match(response)
 
@@ -163,7 +164,6 @@ class IMAP_Client:
                 server_command = response_match.group('command').lower()
                 if server_tag == server_response_tag:
                     # Verifiy the command completion corresponds to the client command
-                    self.list_server = False
                     self.send_to_client(response.replace(server_response_tag, self.client_tag, 1))
                     return 
             
@@ -240,15 +240,14 @@ class IMAP_Client:
         self.transmit()
 
     def fetch(self):
-        if 'SENT' not in self.current_folder.upper():
-            pycircleanmail.process(self)
+        pycircleanmail.process(self)
         self.transmit()
 
     #       Sending and receiving
 
     def send_to_client(self, str_data):
 
-        b_data = str_data.encode() + CRLF
+        b_data = str_data.encode('utf-8', 'replace') + CRLF
         self.conn_client.send(b_data)
 
         if self.verbose: 
@@ -273,7 +272,7 @@ class IMAP_Client:
         Stop listening the client if the connection with the server is broken/reset
         """
 
-        b_data = str_data.encode() + CRLF
+        b_data = str_data.encode('utf-8', 'replace') + CRLF
         self.conn_server.send(b_data)
 
         if self.verbose: 
