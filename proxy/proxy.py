@@ -1,4 +1,4 @@
-import sys, socket, ssl, re, base64, threading, oauth2, argparse, imaplib
+import sys, socket, ssl, re, base64, threading, argparse, imaplib
 from modules import pycircleanmail, misp
 
 # Default maximum number of client supported by the proxy
@@ -31,9 +31,9 @@ CAPABILITIES = (
     'CHILDREN', 
     'NAMESPACE',
     'LITERAL'
-    )
+)
 
-# Authorized email addresses with hostname TODO: check with mx record
+# Authorized email addresses with hostname
 email_hostname = {
     'hotmail': 'imap-mail.outlook.com',
     'outlook': 'imap-mail.outlook.com',
@@ -119,8 +119,8 @@ class IMAP_Client:
             self.listen_client()
         except (BrokenPipeError, ConnectionResetError):
             print('Connections closed')
-        '''except ValueError as e:
-            print('[ERROR]', e)'''
+        except ValueError as e:
+            print('[ERROR]', e)
 
         self.close()
 
@@ -243,7 +243,21 @@ class IMAP_Client:
         pycircleanmail.process(self)
         self.transmit()
 
-    #       Sending and receiving
+    #       Command completion
+
+    def success(self):
+        """ Success command completing response of the command with the corresponding tag """
+        return self.client_tag + ' OK ' + self.client_command + ' completed.'
+
+    def failure(self):
+        """ Failure command completing response """
+        return self.client_tag + ' NO ' + self.client_command + ' failed.'
+
+    def error(self, msg):
+        """ Error command completing response """
+        return self.client_tag + ' BAD ' + msg
+
+    #       Sending and receiving methods
 
     def send_to_client(self, str_data):
 
@@ -299,18 +313,6 @@ class IMAP_Client:
         if text.startswith('"') and text.endswith('"'):
             text = text[1:-1]
         return text
-
-    def success(self):
-        """ Success command completing response of the command with the corresponding tag """
-        return self.client_tag + ' OK ' + self.client_command + ' completed.'
-
-    def failure(self):
-        """ Failure command completing response """
-        return self.client_tag + ' NO ' + self.client_command + ' failed.'
-
-    def error(self, msg):
-        """ Error command completing response """
-        return self.client_tag + ' BAD ' + msg
 
     def close(self):
         """ Close connection with the client """

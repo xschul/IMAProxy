@@ -67,9 +67,6 @@ def sanitize(id, conn_server, folder, uidc):
     conn_server.state = 'SELECTED'
     result, response = conn_server.uid('fetch', id, MSG_DATA_FS) if uidc else conn_server.fetch(id, MSG_DATA_FS)
 
-    print('In folder', folder)
-    print('Result1: ', response)
-
     if result == 'OK' and response[0]:
         try:
             [(flags, signature), ids] = response
@@ -81,7 +78,8 @@ def sanitize(id, conn_server, folder, uidc):
             print('Already sanitized')
             return
 
-    print('Not sanitized')
+    print('Email to sanitize')
+
     # Message unseen or no CIRCL header
     conn_server.select(folder)
     result, response = conn_server.uid('fetch', id, MSG_DATA) if uidc else conn_server.fetch(id, MSG_DATA)
