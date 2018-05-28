@@ -13,7 +13,7 @@ Complete IMAP transparent proxy easy to modulate.
 
 ### Integrated modules
 
-Modules are easy to integrated and easy to remove (just remove their calls in the proxy.py file).
+Modules are easy to integrate and easy to remove (just remove their calls in the proxy.py file).
 
 * Sanitize emails and keep a copy in a Quarantine folder using the [PyCIRCLeanMail](https://github.com/CIRCL/PyCIRCLeanMail)
 * Forward emails to [MISP](https://github.com/misp)
@@ -31,7 +31,7 @@ python3 proxy/proxy.py -h
 
 ### Run with Thunderbird
 
-First, open [Thunderbird](https://www.mozilla.org/en-US/thunderbird/), right-click on your email address and select "Settings". In "Server Settings", modify the "Server Name" by the IP address of the proxy.
+First, open [Thunderbird](https://www.mozilla.org/en-US/thunderbird/), right-click on your email address and select "Settings". In "Server Settings", modify the "Server Name" by the IP address of the proxy. That's it !
 
 ### Run the tests
 
