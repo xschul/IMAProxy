@@ -1,17 +1,17 @@
 # Python IMAP transparent proxy server
 
-Complete IMAP Transparent Proxy easy to modulate.
+Complete IMAP transparent proxy easy to modulate.
 
 ## Features
 
 * The proxy acts transparently and interprets every IMAP command
 * Support TLS/SSL for both client and server connections
-* Works with email applications as [Thunderbird](https://www.mozilla.org/en-US/thunderbird/), [Outlook](https://outlook.live.com/owa/)
+* Works with email applications as [Thunderbird](https://www.mozilla.org/en-US/thunderbird/) or [Outlook](https://outlook.live.com/owa/)
 * Asynchronous, non-blocking socket connections
 * Possibility to display IMAP payload
 * Easy to modulate and to handle IMAP commands
 
-## Integrated modules
+### Integrated modules
 
 Modules are easy to integrated and easy to remove (just remove their calls in the proxy.py file).
 
