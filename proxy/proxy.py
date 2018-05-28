@@ -74,13 +74,10 @@ class IMAP_Proxy:
         self.certfile = certfile
 
         if not port: # Set default port
-            if not certfile: # Without SSL/TLS
-                port = IMAP_PORT
-            else: # With SSL/TLS
-                port = IMAP_SSL_PORT
+            port = IMAP_SSL_PORT if certfile else IMAP_PORT
 
         if not max_client:
-            max_client = MAX_CLIENT
+            max_client = MAX_CLIENT 
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind(('', port))
@@ -95,7 +92,7 @@ class IMAP_Proxy:
             if not self.certfile: # Connection without SSL/TLS
                 IMAP_Client(ssock, self.verbose)
             else: # Connection with SSL/TLS
-                IMAP_Client_SLL(ssock, self.certfile, self.verbose)
+                IMAP_Client_SSL(ssock, self.certfile, self.verbose)
 
         while True:
             try:
@@ -117,6 +114,8 @@ class IMAP_Client:
         try:
             self.send_to_client('* OK Service Ready.')
             self.listen_client()
+        except ssl.SSLError:
+            pass
         except (BrokenPipeError, ConnectionResetError):
             print('Connections closed')
         except ValueError as e:
@@ -134,7 +133,7 @@ class IMAP_Client:
 
                 if not match:
                     # Not a correct request
-                    self.error('Incorrect request')
+                    self.send_to_client(self.error('Incorrect request'))
                     raise ValueError('Error while listening the client: '
                         + request + ' contains no tag and/or no command')
 
@@ -182,6 +181,7 @@ class IMAP_Client:
     def connect_server(self, username, password):
         username = self.remove_quotation_marks(username)
         password = self.remove_quotation_marks(password)
+        print(username)
 
         domains = username.split('@')[1].split('.')[:-1] # Remove before '@' and remove '.com' / '.be' / ...
         domain = ' '.join(str(d) for d in domains) 
@@ -236,7 +236,7 @@ class IMAP_Client:
         self.transmit()
 
     def move(self):
-        #misp.process(self)
+        misp.process(self)
         self.transmit()
 
     def fetch(self):
@@ -320,7 +320,7 @@ class IMAP_Client:
             self.conn_client.close()
     
 
-class IMAP_Client_SLL(IMAP_Client):
+class IMAP_Client_SSL(IMAP_Client):
     r""" IMAP_Client class over SSL connection
 
     Instantiate with: IMAP_Client([ssock[, certfile[, verbose]]])

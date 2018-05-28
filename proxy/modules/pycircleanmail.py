@@ -34,10 +34,12 @@ def process(client):
     conn_server = client.conn_server
     folder = client.current_folder
 
-    # Don't sanitize sent or quarantine emails
-    if 'SENT' in folder.upper() or QUARANTINE_FOLDER in folder or 'Deleted' in folder: return
+    # Don't sanitize sent / quarantine / deleted emails
+    if "Inbox" not in folder: 
+            print("Don't need to sanitize in the folder:", folder)
+            return
 
-    uidc = True if 'UID' in request else False
+    uidc = True if (('UID' in request) or ('uid' in request)) else False
 
     match = Fetch.match(request)
     if not match: return # Client discovers new emails
@@ -74,7 +76,7 @@ def sanitize(id, conn_server, folder, uidc):
             # Not correct answer
             return
 
-        if SIGNATURE.encode() in signature:
+        if (SIGNATURE.encode() in signature) and (VALUE_SANITIZED.encode() in signature):
             print('Already sanitized')
             return
 
@@ -125,7 +127,7 @@ def sanitize(id, conn_server, folder, uidc):
 
     # Copy of the original email
     mail.add_header(SIGNATURE, VALUE_ORIGINAL)
-    conn_server.append(QUARANTINE_FOLDER, '', date, bmail)
+    conn_server.append(QUARANTINE_FOLDER, '', date, str(mail).encode())
 
     # Delete original
     conn_server.uid('STORE', id, '+FLAGS', '(\Deleted)') if uidc else conn_server.store(id, '+FLAGS', '(\Deleted)')
