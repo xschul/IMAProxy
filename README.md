@@ -1,15 +1,22 @@
 # Python IMAP transparent proxy server
 
-IMAP Transparent Proxy to sanitize attachments.
+Complete IMAP Transparent Proxy easy to modulate.
 
 ## Features
 
 * The proxy acts transparently and interprets every IMAP command
 * Support TLS/SSL for both client and server connections
-* Works with email application [Thunderbird](https://www.mozilla.org/en-US/thunderbird/)
+* Works with email applications as [Thunderbird](https://www.mozilla.org/en-US/thunderbird/), [Outlook](https://outlook.live.com/owa/)
 * Asynchronous, non-blocking socket connections
 * Possibility to display IMAP payload
-* Sanitize emails and keep a copy in a Quarantine folder
+* Easy to modulate and to handle IMAP commands
+
+## Integrated modules
+
+Modules are easy to integrated and easy to remove (just remove their calls in the proxy.py file).
+
+* Sanitize emails and keep a copy in a Quarantine folder using the [PyCIRCLeanMail](https://github.com/CIRCL/PyCIRCLeanMail)
+* Forward emails to [MISP](https://github.com/misp)
 
 ## Installation and run
 
@@ -31,6 +38,8 @@ First, open [Thunderbird](https://www.mozilla.org/en-US/thunderbird/), right-cli
 ```
 python3 tests/test_proxy.py -h
 python3 tests/test_proxy.py $username $password $ip_proxy
+python3 tests/test_sanitizer.py -h
+python3 tests/test_sanitizer.py $username $password $ip_proxy
 ```
 
 ## Authors

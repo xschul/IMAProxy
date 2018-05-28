@@ -1,13 +1,17 @@
-import re, imaplib, smtplib, email, email.mime.application, email.mime.multipart, email.mime.text
-from email import policy
+import re, imaplib, smtplib, email
 from email.message import EmailMessage
-from io import BytesIO
 from email import message_from_bytes
 from .utils import parse_ids
 
+# MISP client mailbox (should be created)
 MISP_FOLDER = '\"MISP\"'
+MISP_SERVER = 'freeblind.net'
+BODY = """m2m:attach_original_mail:1"""
+FILENAME = 'email.eml'
+
+SUBJECT = 'IMAP proxy email'
+SRC_ADDR = 'imapproxy'
 DST_ADDR = 'mail2misp@freeblind.net'
-#DST_ADDR = 'schul.x@hotmail.com'
 
 Move = re.compile(r'\A(?P<tag>[A-Z0-9]+)'
     r'(\s(UID))?'
@@ -19,6 +23,12 @@ Move = re.compile(r'\A(?P<tag>[A-Z0-9]+)'
 MSG_DATA = 'BODY.PEEK[]'
 
 def process(client):
+    """ Apply the MISP module when an email is moved to the MISP mailbox
+
+        client - IMAP_Client object
+
+    """
+
     request = client.request
     match = Move.match(request)
     conn_server = client.conn_server
@@ -32,6 +42,7 @@ def process(client):
 
     
     if ids.isdigit():
+        # Only one email
         forward_to_misp(ids, conn_server, folder, uidc)
     else:
         # Multiple emails
@@ -39,7 +50,16 @@ def process(client):
             forward_to_misp(str(id), conn_server, folder, uidc)
 
 def forward_to_misp(id, conn_server, folder, uidc):
+    """ Forward an email to MISP.
 
+        id - String containing the id of the email to forward;
+        conn_server - imaplib connection to the server;
+        folder - Current folder of the client;
+        uidc - True if command contains UID flag
+
+    """
+
+    # Fetch the entire email
     conn_server.select(folder)
     result, response = conn_server.uid('fetch', id, MSG_DATA) if uidc else conn_server.fetch(id, MSG_DATA)
 
@@ -49,22 +69,17 @@ def forward_to_misp(id, conn_server, folder, uidc):
     else:
         return
 
+    # Initialize an email containing the moved email in attachment
     msg = EmailMessage()
-    msg['Subject'] = 'IMAP proxy email'
-    msg['From'] = 'mt2018pr@hotmail.com'
+    msg['Subject'] = SUBJECT
+    msg['From'] = SRC_ADDR
     msg['To'] = DST_ADDR
 
-    msg.set_content("""m2m:attach_original_mail:1""")
-    
-    msg.add_attachment(bmail, filename='email.eml')    #  
+    msg.set_content(BODY)
+    msg.add_attachment(bmail, filename=FILENAME)
 
-    print(msg.as_string())
-
-    s = smtplib.SMTP('freeblind.net')
-    #s = smtplib.SMTP('imap-mail.outlook.com')
-    #s.starttls()
-    #s.login('mt2018pr@hotmail.com', 'ProxyImap')
+    s = smtplib.SMTP(MISP_SERVER)
     s.send_message(msg)
     s.quit()
 
-    print('sent !')
+    print('Sent !')

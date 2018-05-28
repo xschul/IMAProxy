@@ -13,7 +13,6 @@ def parse_ids(str_ids):
     ids = []
     raw_ids = str_ids.split(',')
 
-    # Get the ids
     for s in raw_ids:
         if ':' in s:
             (start, end) = s.split(':')

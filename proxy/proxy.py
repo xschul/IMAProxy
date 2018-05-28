@@ -86,7 +86,7 @@ class IMAP_Proxy:
 
 
     def listen(self):
-        """ Wait and create a new IMAP_Client for each client. """
+        """ Wait and create a new IMAP_Client for each new connection. """
 
         def new_client(ssock):
             if not self.certfile: # Connection without SSL/TLS
@@ -106,13 +106,23 @@ class IMAP_Proxy:
 
 class IMAP_Client:
 
-    def __init__(self, ssock, verbose = False):
+    r""" Implementation of a client.
+
+    Instantiate with: IMAP_Client([ssock[, verbose]])
+
+            socket - Connection (with or without SSL/TLS) with the client
+            verbose - Display the IMAP payload (default: False)
+    
+    Listens on the socket commands from the client.
+    """
+
+    def __init__(self, socket, verbose = False):
         self.verbose = verbose
-        self.conn_client = ssock
+        self.conn_client = socket
         self.conn_server = None
 
         try:
-            self.send_to_client('* OK Service Ready.')
+            self.send_to_client('* OK Service Ready.') # Server greeting
             self.listen_client()
         except ssl.SSLError:
             pass
@@ -126,6 +136,8 @@ class IMAP_Client:
     #       Listen client/server and connect server
 
     def listen_client(self):
+        """ Listen commands from the client """
+
         while self.listen_client:
             for request in self.recv_from_client().split('\r\n'): # In case of multiple requests
 
@@ -142,22 +154,29 @@ class IMAP_Client:
                 self.client_flags = match.group('flags')
                 self.request = request
 
-                if self.client_command in Commands: 
+                if self.client_command in Commands:
+                    # Command supported by the proxy
                     getattr(self, self.client_command)()
                 else:
+                    # Command unsupported -> directly transmit the command 
+                    # to the server and response to the client
                     self.transmit()
 
     def transmit(self):
+        """ Replace client tag by the server tag """
         server_tag = self.conn_server._new_tag().decode()
         self.send_to_server(self.request.replace(self.client_tag, server_tag, 1))
         self.listen_server(server_tag)
                 
     def listen_server(self, server_tag):
+        """ Continuously listen the server until a command completion response 
+        with the corresponding server_tag """
+
         while True:
             response = self.recv_from_server()
             response_match = Response.match(response)
 
-            #   Command completion response
+            ##   Command completion response
             if response_match: 
                 server_response_tag = response_match.group('tag')
                 server_command = response_match.group('command').lower()
@@ -166,12 +185,12 @@ class IMAP_Client:
                     self.send_to_client(response.replace(server_response_tag, self.client_tag, 1))
                     return 
             
-            #   Untagged or continuation response
+            ##   Untagged or continuation response
             self.send_to_client(response)
 
+            
             if response.startswith('+') and self.client_command.upper() != 'FETCH':
-                # The response starts with '+' -> the client will send a sequence of request (continuation)
-                # Don't start the client sequence if an email is fetched (the '+' is contained in an email)
+                ##   Continuation response
                 client_sequence = self.recv_from_client()
                 while client_sequence != '': # Client sequence ends with empty request
                     self.send_to_server(client_sequence)
@@ -179,9 +198,10 @@ class IMAP_Client:
                 self.send_to_server(client_sequence)
 
     def connect_server(self, username, password):
+        """ Connect to the real server of the client fir its credentials """
+
         username = self.remove_quotation_marks(username)
         password = self.remove_quotation_marks(password)
-        print(username)
 
         domains = username.split('@')[1].split('.')[:-1] # Remove before '@' and remove '.com' / '.be' / ...
         domain = ' '.join(str(d) for d in domains) 
@@ -208,14 +228,18 @@ class IMAP_Client:
     #       Supported IMAP commands
 
     def capability(self):
+        """ Send capabilites of the proxy """
         self.send_to_client('* CAPABILITY ' + ' '.join(cap for cap in CAPABILITIES) + ' +')
         self.send_to_client(self.success())
 
     def authenticate(self):
+        """ Authenticate the client and call the given auth mechanism """
         auth_type = self.client_flags.split(' ')[0].lower()
-        getattr(self, self.client_command+"_"+auth_type)()
+        getattr(self, self.client_command+"_"+auth_type)() 
 
     def authenticate_plain(self):
+        """ Get the username and password using plain mechanism and 
+        connect to the server """
         self.send_to_client('+')
         request = self.recv_from_client()
         (empty, busername, bpassword) = base64.b64decode(request).split(b'\x00')
@@ -224,29 +248,34 @@ class IMAP_Client:
         self.connect_server(username, password)
 
     def login(self):
+        """ Login and connect to the server """
         (username, password) = self.client_flags.split(' ')
         self.connect_server(username, password)
 
     def logout(self):
+        """ Logout and stop listening the client """
         self.listen_client = False
         self.transmit()
 
     def select(self):
+        """ Select a mailbox """
         self.set_current_folder(self.client_flags)
         self.transmit()
 
     def move(self):
+        """ Move an email to another mailbox """
         misp.process(self)
         self.transmit()
 
     def fetch(self):
+        """ Fetch an email """
         pycircleanmail.process(self)
         self.transmit()
 
     #       Command completion
 
     def success(self):
-        """ Success command completing response of the command with the corresponding tag """
+        """ Success command completing response """
         return self.client_tag + ' OK ' + self.client_command + ' completed.'
 
     def failure(self):
@@ -260,6 +289,7 @@ class IMAP_Client:
     #       Sending and receiving methods
 
     def send_to_client(self, str_data):
+        """ Send String data to the client """
 
         b_data = str_data.encode('utf-8', 'replace') + CRLF
         self.conn_client.send(b_data)
@@ -268,7 +298,7 @@ class IMAP_Client:
             print("[<--]: ", b_data)
 
     def recv_from_client(self):
-        """ Return the last request (str format) from the client """
+        """ Return the last String request from the client """
 
         b_request = self.conn_client.recv(1024)
         str_request = b_request.decode('utf-8', 'replace')[:-2] # decode and remove CRLF
@@ -279,12 +309,7 @@ class IMAP_Client:
         return str_request
 
     def send_to_server(self, str_data):
-        """ Send request to the server
-
-            str_data - String without CRLF
-
-        Stop listening the client if the connection with the server is broken/reset
-        """
+        """ Send String data to the server """
 
         b_data = str_data.encode('utf-8', 'replace') + CRLF
         self.conn_server.send(b_data)
@@ -293,7 +318,7 @@ class IMAP_Client:
             print("  [-->]: ", b_data)
 
     def recv_from_server(self):
-        """ Return the last response (str format) from the server """
+        """ Return the last String response from the server """
 
         b_response = self.conn_server._get_line()
         str_response = b_response.decode('utf-8', 'replace')    
@@ -310,6 +335,7 @@ class IMAP_Client:
         self.current_folder = self.remove_quotation_marks(folder)
 
     def remove_quotation_marks(self, text):
+        """ Remove quotation marks of a String """
         if text.startswith('"') and text.endswith('"'):
             text = text[1:-1]
         return text

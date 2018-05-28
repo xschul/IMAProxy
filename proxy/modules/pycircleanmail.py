@@ -26,7 +26,6 @@ MSG_DATA = 'BODY.PEEK[]'
 def process(client):
     """ Apply the PyCIRCLeanMail module if the request match with a Fetch request
 
-        request - Request from the cleint (str format)
         client - IMAP_Client object
 
     """
@@ -34,15 +33,15 @@ def process(client):
     conn_server = client.conn_server
     folder = client.current_folder
 
-    # Don't sanitize sent / quarantine / deleted emails
+    # Only sanitize emails in the Inbox
     if "Inbox" not in folder: 
             print("Don't need to sanitize in the folder:", folder)
             return
 
     uidc = True if (('UID' in request) or ('uid' in request)) else False
 
-    match = Fetch.match(request)
-    if not match: return # Client discovers new emails
+    match = Fetch.match(request) 
+    if not match: return # Client discovers new emails (presence of '*' key)
     ids = match.group('ids')
 
     if ids.isdigit(): 
@@ -57,13 +56,13 @@ def process(client):
 def sanitize(id, conn_server, folder, uidc):
     """ Sanitize, if necessary, an email.
 
-        ids - String containing the ids of the email;
-        conn_server - Socket to the server;
+        id - String containing the id of the email to fetch;
+        conn_server - imaplib connection to the server;
         folder - Current folder of the client;
         uidc - True if command contains UID flag
 
-    If the email is not sanitized yet, make a sanitized copy if the same folder
-    and an unsanitized copy if the Quarantine folder. The original email is deleted
+    If the email is not sanitized yet, make a sanitized copy in the same folder
+    and an unsanitized copy if the Quarantine folder. The original email is deleted.
     """
 
     conn_server.state = 'SELECTED'
@@ -80,9 +79,9 @@ def sanitize(id, conn_server, folder, uidc):
             print('Already sanitized')
             return
 
-    print('Email to sanitize')
+    print('Email not sanitized')
 
-    # Message unseen or no CIRCL header
+    # No CIRCL signature or incorrect value
     conn_server.select(folder)
     result, response = conn_server.uid('fetch', id, MSG_DATA) if uidc else conn_server.fetch(id, MSG_DATA)
 
@@ -102,7 +101,6 @@ def sanitize(id, conn_server, folder, uidc):
         m = t.process_mail()
         content = BytesIO(m.as_bytes())
     except Exception:
-        # Often ValueError in BytesIO
         smail = email.message_from_bytes(bmail)
         print("-- Can't sanitize this email: --")
         print(smail)
@@ -117,7 +115,6 @@ def sanitize(id, conn_server, folder, uidc):
         smail.add_header(SIGNATURE, VALUE_SANITIZED)
         conn_server.append(folder, '', date, str(smail).encode())
     except Exception as e:
-        # Often KeyError in content.getvalue()
         print("-- Error: ", e, " --")
         print(content.getvalue())
         print("--------------------------------")
