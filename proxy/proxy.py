@@ -33,15 +33,16 @@ CAPABILITIES = (
     'LITERAL'
 )
 
-# Authorized email addresses with hostname
-email_hostname = {
+# Authorized domain addresses with their corresponding host
+HOSTS = {
     'hotmail': 'imap-mail.outlook.com',
     'outlook': 'imap-mail.outlook.com',
     'yahoo': 'imap.mail.yahoo.com',
     'gmail': 'imap.gmail.com'
 }
 
-Commands = (
+# Intercepted commands
+COMMANDS = (
     'authenticate',
     'capability',
     'login',
@@ -154,7 +155,7 @@ class IMAP_Client:
                 self.client_flags = match.group('flags')
                 self.request = request
 
-                if self.client_command in Commands:
+                if self.client_command in COMMANDS:
                     # Command supported by the proxy
                     getattr(self, self.client_command)()
                 else:
@@ -207,7 +208,7 @@ class IMAP_Client:
         domain = ' '.join(str(d) for d in domains) 
 
         try:
-            hostname = email_hostname[domain]
+            hostname = HOSTS[domain]
         except KeyError:
             self.send_to_client(self.error('Unknown hostname'))
             raise ValueError('Error while connecting to the server: '
@@ -289,7 +290,7 @@ class IMAP_Client:
     #       Sending and receiving methods
 
     def send_to_client(self, str_data):
-        """ Send String data to the client """
+        """ Send String data (without CRLF) to the client """
 
         b_data = str_data.encode('utf-8', 'replace') + CRLF
         self.conn_client.send(b_data)
@@ -298,7 +299,7 @@ class IMAP_Client:
             print("[<--]: ", b_data)
 
     def recv_from_client(self):
-        """ Return the last String request from the client """
+        """ Return the last String request from the client without CRLF """
 
         b_request = self.conn_client.recv(1024)
         str_request = b_request.decode('utf-8', 'replace')[:-2] # decode and remove CRLF
@@ -309,7 +310,7 @@ class IMAP_Client:
         return str_request
 
     def send_to_server(self, str_data):
-        """ Send String data to the server """
+        """ Send String data (without CRLF) to the server """
 
         b_data = str_data.encode('utf-8', 'replace') + CRLF
         self.conn_server.send(b_data)
@@ -318,7 +319,7 @@ class IMAP_Client:
             print("  [-->]: ", b_data)
 
     def recv_from_server(self):
-        """ Return the last String response from the server """
+        """ Return the last String response from the server without CRLF """
 
         b_response = self.conn_server._get_line()
         str_response = b_response.decode('utf-8', 'replace')    
@@ -347,9 +348,9 @@ class IMAP_Client:
     
 
 class IMAP_Client_SSL(IMAP_Client):
-    r""" IMAP_Client class over SSL connection
+    r""" IMAP_Client class over SSL/TLS connection
 
-    Instantiate with: IMAP_Client([ssock[, certfile[, verbose]]])
+    Instantiate with: IMAP_Client_SSL([ssock[, certfile[, verbose]]])
     
         ssock - Socket with the client;
         certfile - PEM formatted certificate chain file;
