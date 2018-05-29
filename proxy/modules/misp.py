@@ -13,7 +13,7 @@ SUBJECT = 'IMAP proxy email'
 SRC_ADDR = 'imapproxy'
 DST_ADDR = 'mail2misp@freeblind.net'
 
-Move = re.compile(r'\A(?P<tag>[A-Z0-9]+)'
+Move_MISP = re.compile(r'\A(?P<tag>[A-Z0-9]+)'
     r'(\s(UID))?'
     r'\s(MOVE)'
     r'\s(?P<ids>[0-9:,]+)'
@@ -30,13 +30,13 @@ def process(client):
     """
 
     request = client.request
-    match = Move.match(request)
+    match = Move_MISP.match(request)
     conn_server = client.conn_server
     folder = client.current_folder
 
     uidc = True if (('UID' in request) or ('uid' in request)) else False
 
-    match = Move.match(request)
+    match = Move_MISP.match(request) 
     if not match: return 
     ids = match.group('ids')
 

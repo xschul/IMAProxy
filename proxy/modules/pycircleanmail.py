@@ -100,9 +100,9 @@ def sanitize(id, conn_server, folder, uidc):
         t = KittenGroomerMail(bmail)
         m = t.process_mail()
         content = BytesIO(m.as_bytes())
-    except Exception:
+    except Exception as e:
         smail = email.message_from_bytes(bmail)
-        print("-- Can't sanitize this email: --")
+        print("-- Error: ", e, " --")
         print(smail)
         print("--------------------------------")
         smail.add_header(SIGNATURE, VALUE_ERROR)

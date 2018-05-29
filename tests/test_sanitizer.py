@@ -76,5 +76,5 @@ if __name__ == '__main__':
             run_tests(imaplib.IMAP4_SSL(args.ip_proxy), args.username, args.password)
         except ConnectionRefusedError:
             print("Ports 143 and 993 blocked")
-            print("Please verify if the proxy or ports 143/993 are up")
+            print("Please verify if the proxy on ports 143/993 are up")
     

@@ -71,8 +71,6 @@ if __name__ == '__main__':
     parser.add_argument('ip_proxy', help='Ip address of the proxy')
     args = parser.parse_args()
 
-    # TODO: with and without the sanitizer
-
     try:
         print("Try to connect to the proxy without SSL/TLS")
         run_tests(imaplib.IMAP4(args.ip_proxy), args.username, args.password)
@@ -83,5 +81,5 @@ if __name__ == '__main__':
             run_tests(imaplib.IMAP4_SSL(args.ip_proxy), args.username, args.password)
         except ConnectionRefusedError:
             print("Ports 143 and 993 blocked")
-            print("Please verify if the proxy or ports 143/993 are up")
+            print("Please verify if the proxy on ports 143/993 are up")
     

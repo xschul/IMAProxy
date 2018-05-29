@@ -8,12 +8,12 @@ IMAP_PORT, IMAP_SSL_PORT = 143, 993
 CRLF = b'\r\n'
 
 # Tagged request from the client
-Request = re.compile(r'(?P<tag>[A-Z0-9]+)'
+Tagged_Request = re.compile(r'(?P<tag>[A-Z0-9]+)'
     r'(\s(UID))?'
     r'\s(?P<command>[A-Z]*)'
     r'(\s(?P<flags>.*))?', flags=re.IGNORECASE)
 # Tagged response from the server
-Response= re.compile(r'\A(?P<tag>[A-Z0-9]+)'
+Tagged_Response= re.compile(r'\A(?P<tag>[A-Z0-9]+)'
     r'\s(OK)'
     r'(\s\[(?P<flags>.*)\])?'
     r'\s(?P<command>[A-Z]*)', flags=re.IGNORECASE)
@@ -23,14 +23,12 @@ CAPABILITIES = (
     'IMAP4',
     'IMAP4rev1',
     'AUTH=PLAIN',
-    'SASL-IR',
     'UIDPLUS',
     'MOVE',
     'ID',
     'UNSELECT', 
     'CHILDREN', 
-    'NAMESPACE',
-    'LITERAL'
+    'NAMESPACE'
 )
 
 # Authorized domain addresses with their corresponding host
@@ -142,7 +140,7 @@ class IMAP_Client:
         while self.listen_client:
             for request in self.recv_from_client().split('\r\n'): # In case of multiple requests
 
-                match = Request.match(request)
+                match = Tagged_Request.match(request)
 
                 if not match:
                     # Not a correct request
@@ -171,11 +169,11 @@ class IMAP_Client:
                 
     def listen_server(self, server_tag):
         """ Continuously listen the server until a command completion response 
-        with the corresponding server_tag """
+        with the corresponding server_tag is received"""
 
         while True:
             response = self.recv_from_server()
-            response_match = Response.match(response)
+            response_match = Tagged_Response.match(response)
 
             ##   Command completion response
             if response_match: 
@@ -199,7 +197,7 @@ class IMAP_Client:
                 self.send_to_server(client_sequence)
 
     def connect_server(self, username, password):
-        """ Connect to the real server of the client fir its credentials """
+        """ Connect to the real server of the client for its credentials """
 
         username = self.remove_quotation_marks(username)
         password = self.remove_quotation_marks(password)
