@@ -34,7 +34,7 @@ def process(client):
     folder = client.current_folder
 
     # Only sanitize emails in the Inbox
-    if "Inbox" not in folder: 
+    if ("QUARANTINE" in folder.upper()) or ("SENT" in folder.upper()): 
             print("Don't need to sanitize in the folder:", folder)
             return
 
