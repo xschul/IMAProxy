@@ -72,7 +72,7 @@ def sanitize(id, conn_server, folder, uidc):
         try:
             [(flags, signature), ids] = response
         except ValueError:
-            # Not correct answer
+            # Not correct response
             return
 
         if (SIGNATURE.encode() in signature) and (VALUE_SANITIZED.encode() in signature):

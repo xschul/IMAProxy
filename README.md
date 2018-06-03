@@ -1,6 +1,6 @@
 # Python IMAP transparent proxy server
 
-Complete IMAP transparent proxy easy to modulate.
+Fully IMAP4rev1 compliant transparent proxy easy to modulate.
 
 ## Features
 
@@ -10,6 +10,7 @@ Complete IMAP transparent proxy easy to modulate.
 * Asynchronous, non-blocking socket connections
 * Possibility to display IMAP payload
 * Easy to modulate and to handle IMAP commands
+* Extensions: [UIDPLUS](https://rfc-editor.org/rfc/rfc4315.txt), [MOVE](https://rfc-editor.org/rfc/rfc6851.txt), [ID](https://rfc-editor.org/rfc/rfc2971.txt), [UNSELECT](https://rfc-editor.org/rfc/rfc3691.txt), [CHILDREN](https://rfc-editor.org/rfc/rfc3348.txt) and [NAMESPACE](https://rfc-editor.org/rfc/rfc2342.txt).
 
 ### Integrated modules
 

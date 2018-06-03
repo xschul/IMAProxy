@@ -178,13 +178,12 @@ class IMAP_Client:
             ##   Command completion response
             if response_match: 
                 server_response_tag = response_match.group('tag')
-                server_command = response_match.group('command').lower()
                 if server_tag == server_response_tag:
-                    # Verifiy the command completion corresponds to the client command
+                    # Verify the command completion corresponds to the client command
                     self.send_to_client(response.replace(server_response_tag, self.client_tag, 1))
                     return 
             
-            ##   Untagged or continuation response
+            ##   Untagged or continuation response or data messages
             self.send_to_client(response)
 
             
