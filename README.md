@@ -7,7 +7,7 @@ Fully IMAP4rev1 compliant transparent proxy easy to modulate.
 * The proxy acts transparently and interprets every IMAP command
 * Support TLS/SSL for both client and server connections
 * Support IPv6
-* Works with email applications as [Thunderbird](https://www.mozilla.org/en-US/thunderbird/) or [Outlook](https://outlook.live.com/owa/)
+* Works with email applications as [Thunderbird](https://www.mozilla.org/en-US/thunderbird/) or [Outlook](https://outlook.live.com/owa/) (**might not work with IPv6 + SSL enabled**)
 * Asynchronous, non-blocking socket connections
 * Possibility to display IMAP payload
 * Easy to modulate and to handle IMAP commands
@@ -34,6 +34,8 @@ python3 proxy/proxy.py -h
 ### Run with Thunderbird
 
 First, open [Thunderbird](https://www.mozilla.org/en-US/thunderbird/), right-click on your email address and select "Settings". In "Server Settings", modify the "Server Name" by the IP address of the proxy. That's it !
+
+It might not work if the IP address of the proxy is **IPv6** and the connection is **SSL/TLS**. If it does not work, please try with Connection security: None.
 
 ### Run the tests
 
