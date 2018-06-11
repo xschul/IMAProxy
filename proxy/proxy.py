@@ -54,7 +54,7 @@ class IMAP_Proxy:
     
     r""" Implementation of the proxy.
 
-    Instantiate with: IMAP_Proxy([port[, host[, certfile[, max_client[, verbose]]]]])
+    Instantiate with: IMAP_Proxy([port[, host[, certfile[, max_client[, verbose[, ipv6]]]]]])
 
             port - port number (default: None. Standard IMAP4 / IMAP4 SSL port will be selected);
             host - host's name (default: localhost);
@@ -63,6 +63,7 @@ class IMAP_Proxy:
                 SSL/TLS. Otherwise, it won't be secured.
             max_client - Maximum number of client supported by the proxy (default: global variable MAX_CLIENT);
             verbose - Display the IMAP payload (default: False)
+            ipv6 - Should be enabled if the ip of the proxy is IPv6 (default: False)
     
     The proxy listens on the given host and port and creates an object IMAP4_Client (or IMAP4_Client_SSL for
     secured connections) for each new client. These socket connections are asynchronous and non-blocking.
