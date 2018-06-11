@@ -68,7 +68,7 @@ class IMAP_Proxy:
     secured connections) for each new client. These socket connections are asynchronous and non-blocking.
     """
 
-    def __init__(self, port=None, host='', certfile=None, max_client=MAX_CLIENT, verbose=False):
+    def __init__(self, port=None, host='', certfile=None, max_client=MAX_CLIENT, verbose=False, ipv6=False):
         self.verbose = verbose
         self.certfile = certfile
 
@@ -78,7 +78,11 @@ class IMAP_Proxy:
         if not max_client:
             max_client = MAX_CLIENT 
 
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if ipv6:
+            self.sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        else:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            
         self.sock.bind(('', port))
         self.sock.listen(max_client)
         self.listen()
@@ -372,7 +376,8 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--port', type=int, help='Listen on the given port')
     parser.add_argument('-n', '--nclient', type=int, help='Maximum number of client supported by the proxy')
     parser.add_argument('-v', '--verbose', help='Echo IMAP payload', action='store_true')
+    parser.add_argument('-6', '--ipv6', help='Enable IPv6 connection (the proxy should have an IPv6 address)', action='store_true')
     args = parser.parse_args()
 
     # Start proxy
-    IMAP_Proxy(port=args.port, certfile=args.certfile, max_client=args.nclient, verbose=args.verbose)
+    IMAP_Proxy(port=args.port, certfile=args.certfile, max_client=args.nclient, verbose=args.verbose, ipv6=args.ipv6)

@@ -6,6 +6,7 @@ Fully IMAP4rev1 compliant transparent proxy easy to modulate.
 
 * The proxy acts transparently and interprets every IMAP command
 * Support TLS/SSL for both client and server connections
+* Support IPv6
 * Works with email applications as [Thunderbird](https://www.mozilla.org/en-US/thunderbird/) or [Outlook](https://outlook.live.com/owa/)
 * Asynchronous, non-blocking socket connections
 * Possibility to display IMAP payload
