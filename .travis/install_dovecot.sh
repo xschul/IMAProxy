@@ -24,7 +24,6 @@ sudo chmod 0640 "$DOVECOT_CONF"
 
 {
     echo "ssl = required"
-    echo "disable_plaintext_auth = yes"
     echo "ssl_cert = <""$SSL_CERT"
     echo "ssl_key = <""$SSL_KEY"
     echo "ssl_protocols = !SSLv2 !SSLv3"
