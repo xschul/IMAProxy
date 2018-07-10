@@ -17,6 +17,7 @@ env:
     - IMAP_PASSWORD=dovecot_travis_testpwd
 
 install:
+  - sh .travis/install_dovecot.sh
   - pip3 install -r requirements.txt
 
 script:
