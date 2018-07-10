@@ -19,7 +19,7 @@ env:
 
 install:
   - pip3 install -r requirements.txt
-  - python3 proxy/proxy.py
+  - sudo python3 proxy/proxy.py
   - sh .travis/run_imap_server.sh
 
 script:
