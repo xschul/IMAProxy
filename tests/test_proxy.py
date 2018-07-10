@@ -36,6 +36,7 @@ def run_tests(conn_proxy, username, password):
     def run(cmd, args):
         print("["+cmd+"]")
         typ, dat = getattr(conn_proxy, cmd)(*args)
+        print(typ, dat)
         
         if typ == 'NO': 
             failed_tests.append('%s => %s %s' % (cmd, typ, dat))
