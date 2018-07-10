@@ -21,7 +21,7 @@ install:
   - sh .travis/run_imap_server.sh
 
 script:
-  - sudo coverage run --source=kittengroomer_email proxy/proxy.py
+  - python3 proxy/proxy.py -p 8002
   - python3 tests/test_proxy.py "$IMAP_USERNAME" "$IMAP_PASSWORD" "$IMAP_SERVER"
 
 notifications:
