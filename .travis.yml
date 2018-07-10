@@ -13,12 +13,12 @@ env:
   global:
     - IMAP_SERVER_NAME=dovecot.travis.dev
     - IMAP_SERVER_PORT=993
-    - IMAP_USERNAME=dovecot_travis_testuser
-    - IMAP_PASSWORD=dovecot_travis_testpwd
+    - IMAP_USERNAME=user@dovecot.com
+    - IMAP_PASSWORD=pwd
 
 install:
   - pip3 install -r requirements.txt
   - sh .travis/install_dovecot.sh
 
 script:
-  - python3 tests/test_proxy.py IMAP_USERNAME IMAP_PASSWORD dovecot.travis.dev
+  - python3 tests/test_proxy.py "$IMAP_USERNAME" "$IMAP_PASSWORD" "$IMAP_SERVER_NAME"
