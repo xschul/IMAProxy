@@ -22,7 +22,7 @@ install:
 
 script:
   - python3 proxy/proxy.py -p 8002 &
-  - python3 tests/test_proxy.py "$IMAP_USERNAME" "$IMAP_PASSWORD" localhost:8002
+  - python3 tests/test_proxy.py "$IMAP_USERNAME" "$IMAP_PASSWORD" localhost -p 8002
 
 notifications:
   email:
