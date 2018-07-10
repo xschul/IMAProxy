@@ -21,12 +21,11 @@ def run_tests(conn_proxy, username, password):
         ('namespace', ()),
         ('expunge', ()),
         ('recent', ()),
-        ('close', ()),
-        ('select', ()),
         ('response',('UIDVALIDITY',)),
         ('uid', ('SEARCH', 'ALL')),
         ('response', ('EXISTS',)),
         ('recent', ()),
+        ('close', ()),
         ('delete', ('tmp/yyz',)),
         ('DELETE', ('tmp/yyy',)),
         ('logout', ()))
