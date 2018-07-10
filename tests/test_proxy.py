@@ -7,12 +7,12 @@ def run_tests(conn_proxy, username, password):
                 + 'IMAProxy tests\n').encode()
     test_seq1 = (
         ('login', (username, password)),
-        ('create', ('/tmp/xxx',)),
-        ('rename', ('/tmp/xxx', '/tmp/yyy')),
-        ('CREATE', ('/tmp/yyz',)),
-        ('append', ('/tmp/yyz', None, None, test_mesg)),
-        ('list', ('/tmp', 'yy*')),
-        ('select', ('/tmp/yyz',)),
+        ('create', ('tmp/xxx',)),
+        ('rename', ('tmp/xxx', 'tmp/yyy')),
+        ('CREATE', ('tmp/yyz',)),
+        ('append', ('tmp/yyz', None, None, test_mesg)),
+        ('list', ('tmp', 'yy*')),
+        ('select', ('tmp/yyz',)),
         ('search', (None, 'SUBJECT', 'test')),
         ('fetch', ('1', '(FLAGS INTERNALDATE RFC822)')),
         ('uid', ('SEARCH', 'ALL')),
@@ -27,8 +27,8 @@ def run_tests(conn_proxy, username, password):
         ('uid', ('SEARCH', 'ALL')),
         ('response', ('EXISTS',)),
         ('recent', ()),
-        ('delete', ('/tmp/yyz',)),
-        ('DELETE', ('/tmp/yyy',)),
+        ('delete', ('tmp/yyz',)),
+        ('DELETE', ('tmp/yyy',)),
         ('logout', ()))
 
     failed_tests = []
