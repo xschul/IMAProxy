@@ -127,7 +127,8 @@ class Connection:
         except ValueError as e:
             print('[ERROR]', e)
 
-        self.close()
+        if self.conn_client:
+            self.conn_client.close()
 
     #       Listen client/server and connect server
 
@@ -328,8 +329,3 @@ class Connection:
         if text.startswith('"') and text.endswith('"'):
             text = text[1:-1]
         return text
-
-    def close(self):
-        """ Close connection with the client """
-        if self.conn_client:
-            self.conn_client.close()
