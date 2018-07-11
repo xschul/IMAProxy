@@ -39,15 +39,6 @@ HOSTS = {
     'dovecot': 'dovecot.travis.dev' # for Travis-CI
 }
 
-# Intercepted commands
-COMMANDS = (
-    'authenticate',
-    'capability',
-    'login',
-    'logout',
-    'select'
-)
-
 class IMAP_Proxy:
     
     r""" Implementation of the proxy.
@@ -147,7 +138,6 @@ class Connection:
             for request in self.recv_from_client().split('\r\n'): # In case of multiple requests
 
                 match = Tagged_Request.match(request)
-
                 if not match:
                     # Not a correct request
                     self.send_to_client(self.error('Incorrect request'))
@@ -159,16 +149,21 @@ class Connection:
                 self.client_flags = match.group('flags')
                 self.request = request
 
-                if self.client_command in COMMANDS:
-                    # Command supported by the proxy
-                    getattr(self, self.client_command)()
-                else:
-                    # Command unsupported -> directly transmit the command 
-                    # to the server and response to the client
-                    self.transmit()
+                self.intercept()
+
+    def intercept(self):
+        """ Intercept commands that are implemented """
+
+        command = getattr(self, self.client_command, None)
+        if callable(command):
+            # Command supported (defined) by the proxy
+            command()
+        else:
+            # Command unsupported -> directly transmit the command to the server
+            self.transmit()
 
     def transmit(self):
-        """ Replace client tag by the server tag """
+        """ Replace client tag by the server tag, transmit it to the server and listen to the server"""
         server_tag = self.conn_server._new_tag().decode()
         self.send_to_server(self.request.replace(self.client_tag, server_tag, 1))
         self.listen_server(server_tag)
