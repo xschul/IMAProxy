@@ -17,7 +17,6 @@ env:
     - PROXY_PORT=8002
 
 install:
-  - pip3 install -r requirements.txt
   - sh .travis/run_imap_server.sh
 
 script:
