@@ -1,6 +1,8 @@
 # Python IMAP transparent proxy server
 
-Fully IMAP4rev1 compliant transparent proxy easy to modulate.
+[![Build Status](https://travis-ci.org/xschul/IMAProxy.svg?branch=master)](https://travis-ci.org/xschul/IMAProxy)
+
+Python IMAP4rev1 transparent proxy easy to modulate.
 
 ## Features
 
@@ -22,7 +24,7 @@ Modules are easy to integrate and easy to remove (just remove their calls in the
 
 ## Installation and run
 
-Clone this repository, install and run the proxy.
+Clone this repository, install and run the proxy (sudo is required for some ports).
 
 ```
 git clone https://github.com/xschul/IMAProxy.git
@@ -33,18 +35,9 @@ python3 proxy/proxy.py -h
 
 ### Run with Thunderbird
 
-First, open [Thunderbird](https://www.mozilla.org/en-US/thunderbird/), right-click on your email address and select "Settings". In "Server Settings", modify the "Server Name" by the IP address of the proxy. That's it !
+First, open [Thunderbird](https://www.mozilla.org/en-US/thunderbird/), right-click on your email address and select "Settings". In "Server Settings", modify the "Server Name" by the IP address of the proxy (or localhost). That's it !
 
 It might not work if the IP address of the proxy is **IPv6** and the connection is **SSL/TLS**. If it does not work, please try with Connection security: None.
-
-### Run the tests
-
-```
-python3 tests/test_proxy.py -h
-python3 tests/test_proxy.py $username $password $ip_proxy
-python3 tests/test_sanitizer.py -h
-python3 tests/test_sanitizer.py $username $password $ip_proxy
-```
 
 ## Authors
 
