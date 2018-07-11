@@ -25,7 +25,7 @@ def run_tests(conn_proxy, username, password):
     failed_tests = []
 
     def run(cmd, args):
-        print("["+cmd+"]")
+        print("["+cmd+"]", end="")
         typ, dat = getattr(conn_proxy, cmd)(*args)
         print(typ)
         
@@ -44,14 +44,13 @@ def run_tests(conn_proxy, username, password):
         if not uid: 
             continue
 
+        print("Is the last email sanitized ?")
         # uid[-1] is the last email received
         result = run('uid', ('FETCH', '%s' % uid[-1].decode(),
                 '(FLAGS INTERNALDATE RFC822.SIZE RFC822.HEADER RFC822.TEXT)'))
         mail = result[0][1]
         if 'CIRCL-Sanitizer' not in mail.decode():
             failed_tests.append('Email not sanitized')
-        else:
-            run('uid', ('STORE', '%s' % uid[-1].decode(), '+FLAGS', '(\Deleted)'))
 
     # Display results
     if not failed_tests:
