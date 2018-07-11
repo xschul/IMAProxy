@@ -36,7 +36,7 @@ HOSTS = {
     'outlook': 'imap-mail.outlook.com',
     'yahoo': 'imap.mail.yahoo.com',
     'gmail': 'imap.gmail.com',
-    'dovecot': 'dovecot.travis.dev' # for travis testing
+    'dovecot': 'dovecot.travis.dev' # for Travis-CI
 }
 
 # Intercepted commands
@@ -45,9 +45,7 @@ COMMANDS = (
     'capability',
     'login',
     'logout',
-    'select',
-    'move',
-    'fetch'
+    'select'
 )
 
 class IMAP_Proxy:
@@ -265,14 +263,6 @@ class IMAP_Client:
         self.set_current_folder(self.client_flags)
         self.transmit()
 
-    def move(self):
-        """ Move an email to another mailbox """
-        self.transmit()
-
-    def fetch(self):
-        """ Fetch an email """
-        self.transmit()
-
     #       Command completion
 
     def success(self):
@@ -366,18 +356,3 @@ class IMAP_Client_SSL(IMAP_Client):
             raise
 
         IMAP_Client.__init__(self, self.conn_client, verbose)
-
-if __name__ == '__main__':
-    # Parser
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--certfile', help='Enable SSL/TLS connection over port 993 (by default) with the certfile given. '
-        + 'Without this argument, the connection will not use SSL/TLS over port 143 (by default)')
-    parser.add_argument('-p', '--port', type=int, help='Listen on the given port')
-    parser.add_argument('-n', '--nclient', type=int, help='Maximum number of client supported by the proxy')
-    parser.add_argument('-v', '--verbose', help='Echo IMAP payload', action='store_true')
-    parser.add_argument('-6', '--ipv6', help='Enable IPv6 connection (the proxy should have an IPv6 address)', action='store_true')
-    args = parser.parse_args()
-
-    # Start proxy
-    print("Starting proxy")
-    IMAP_Proxy(port=args.port, certfile=args.certfile, max_client=args.nclient, verbose=args.verbose, ipv6=args.ipv6)

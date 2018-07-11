@@ -18,12 +18,13 @@ env:
 
 install:
   - sh .travis/run_imap_server.sh
+  - python3 setup.py install
 
 script:
-  - python3 proxy/proxy.py -p "$PROXY_PORT" &
+  - start.py -p "$PROXY_PORT" &
   - pid=$!
   - sleep 5
-  - python3 tests/test_proxy.py "$IMAP_USERNAME" "$IMAP_PASSWORD" localhost -p "$PROXY_PORT"
+  - test_proxy.py "$IMAP_USERNAME" "$IMAP_PASSWORD" localhost -p "$PROXY_PORT"
   - kill -s INT $pid
 
 notifications:

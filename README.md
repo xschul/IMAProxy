@@ -4,8 +4,6 @@
 
 Python IMAP4rev1 transparent proxy easy to modulate. 
 
-A more advanced version is available in the [PyCIRCLeanIMAP](https://github.com/CIRCL/PyCIRCLeanIMAP) repository. It allows emails to be sanitized before being fetched by the user (using [PyCIRCLeanMail](https://github.com/CIRCL/PyCIRCLeanMail)) and transmits email to [MISP](https://github.com/misp).
-
 ## Features
 
 * The proxy acts transparently and interprets every IMAP command
@@ -23,7 +21,8 @@ Clone this repository, install and run the proxy (sudo is required for some port
 
 ```
 git clone https://github.com/xschul/IMAProxy.git
-python3 IMAProxy/proxy/proxy.py -h
+python3 setup.py install
+start.py
 ```
 
 ### Run with Thunderbird
