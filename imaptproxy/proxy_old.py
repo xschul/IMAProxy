@@ -88,29 +88,29 @@ class IMAP_Proxy:
 
 
     def listen(self):
-        """ Wait and create a new Connection for each new connection with a client. """
+        """ Wait and create a new IMAP_Client for each new connection. """
+
+        def new_client(ssock):
+            if not self.certfile: # Connection without SSL/TLS
+                IMAP_Client(ssock, self.verbose)
+            else: # Connection with SSL/TLS
+                IMAP_Client_SSL(ssock, self.certfile, self.verbose)
 
         while True:
             try:
                 ssock, addr = self.sock.accept()
-                threading.Thread(target = self.new_connection, args = (ssock,)).start()
+                threading.Thread(target = new_client, args = (ssock,)).start()
             except KeyboardInterrupt:
                 break
             
         if self.sock:
             self.sock.close()
 
-    def new_connection(self, ssock):
-        if not self.certfile: # Connection without SSL/TLS
-            Connection(ssock, self.verbose)
-        else: # Connection with SSL/TLS
-            Connection_SSL(ssock, self.certfile, self.verbose)
+class IMAP_Client:
 
-class Connection:
+    r""" Implementation of a client.
 
-    r""" Implementation of a connection with a client.
-
-    Instantiate with: Connection([ssock[, verbose]])
+    Instantiate with: IMAP_Client([ssock[, verbose]])
 
             socket - Connection (with or without SSL/TLS) with the client
             verbose - Display the IMAP payload (default: False)
@@ -337,16 +337,16 @@ class Connection:
             self.conn_client.close()
     
 
-class Connection_SSL(Connection):
-    r""" Connection class over SSL/TLS connection
+class IMAP_Client_SSL(IMAP_Client):
+    r""" IMAP_Client class over SSL/TLS connection
 
-    Instantiate with: Connection_SSL([ssock[, certfile[, verbose]]])
+    Instantiate with: IMAP_Client_SSL([ssock[, certfile[, verbose]]])
     
         ssock - Socket with the client;
         certfile - PEM formatted certificate chain file;
         verbose - Display the IMAP payload (default: False)
 
-    for more documentation see the docstring of the parent class Connection.
+    for more documentation see the docstring of the parent class IMAP_Client.
     """
 
     def __init__(self, ssock, certfile, verbose = False):
@@ -355,4 +355,4 @@ class Connection_SSL(Connection):
         except ssl.SSLError as e:
             raise
 
-        Connection.__init__(self, self.conn_client, verbose)
+        IMAP_Client.__init__(self, self.conn_client, verbose)
