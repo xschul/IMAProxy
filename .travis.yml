@@ -25,7 +25,6 @@ script:
   - pid=$!
   - sleep 5
   - python3 tests/test_proxy.py "$IMAP_USERNAME" "$IMAP_PASSWORD" localhost -p "$PROXY_PORT"
-  - python3 tests/test_sanitizer.py "$IMAP_USERNAME" "$IMAP_PASSWORD" localhost -p "$PROXY_PORT"
   - kill -s INT $pid
 
 notifications:

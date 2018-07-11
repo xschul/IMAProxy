@@ -2,7 +2,9 @@
 
 [![Build Status](https://travis-ci.org/xschul/IMAProxy.svg?branch=master)](https://travis-ci.org/xschul/IMAProxy)
 
-Python IMAP4rev1 transparent proxy easy to modulate.
+Python IMAP4rev1 transparent proxy easy to modulate. 
+
+A more advanced version is available in the [PyCIRCLeanIMAP](https://github.com/CIRCL/PyCIRCLeanIMAP) repository. It allows emails to be sanitized before being fetched by the user (using [PyCIRCLeanMail](https://github.com/CIRCL/PyCIRCLeanMail)) and transmits email to [MISP](https://github.com/misp).
 
 ## Features
 
@@ -15,22 +17,13 @@ Python IMAP4rev1 transparent proxy easy to modulate.
 * Easy to modulate and to handle IMAP commands
 * Extensions: [UIDPLUS](https://rfc-editor.org/rfc/rfc4315.txt), [MOVE](https://rfc-editor.org/rfc/rfc6851.txt), [ID](https://rfc-editor.org/rfc/rfc2971.txt), [UNSELECT](https://rfc-editor.org/rfc/rfc3691.txt), [CHILDREN](https://rfc-editor.org/rfc/rfc3348.txt) and [NAMESPACE](https://rfc-editor.org/rfc/rfc2342.txt).
 
-### Integrated modules
-
-Modules are easy to integrate and easy to remove (just remove their calls in the proxy.py file).
-
-* Sanitize emails and keep a copy in a Quarantine folder using the [PyCIRCLeanMail](https://github.com/CIRCL/PyCIRCLeanMail)
-* Forward emails to [MISP](https://github.com/misp)
-
 ## Installation and run
 
 Clone this repository, install and run the proxy (sudo is required for some ports).
 
 ```
 git clone https://github.com/xschul/IMAProxy.git
-cd IMAProxy
-pip3 install -r requirements.txt
-python3 proxy/proxy.py -h
+python3 IMAProxy/proxy/proxy.py -h
 ```
 
 ### Run with Thunderbird
