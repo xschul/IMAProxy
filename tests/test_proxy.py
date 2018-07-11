@@ -33,9 +33,9 @@ def run_tests(conn_proxy, username, password):
     failed_tests = []
 
     def run(cmd, args):
-        print("["+cmd+"]")
+        print("["+cmd+"]: ")
         typ, dat = getattr(conn_proxy, cmd)(*args)
-        print(typ, dat)
+        print(typ)
         
         if typ == 'NO': 
             failed_tests.append('%s => %s %s' % (cmd, typ, dat))
@@ -63,6 +63,7 @@ def run_tests(conn_proxy, username, password):
         print('SOME TESTS FAILED:')
         for test in failed_tests:
             print(test)
+        sys.exit(1)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
