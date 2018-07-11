@@ -93,18 +93,21 @@ class IMAP_Proxy:
         while True:
             try:
                 ssock, addr = self.sock.accept()
+                if self.certfile: # Add SSL/TLS
+                    ssock = ssl.wrap_socket(ssock, certfile=self.certfile, server_side=True)
+
+                # Connect the proxy with the client
                 threading.Thread(target = self.new_connection, args = (ssock,)).start()
             except KeyboardInterrupt:
                 break
+            except ssl.SSLError as e:
+                raise
             
         if self.sock:
             self.sock.close()
 
     def new_connection(self, ssock):
-        if not self.certfile: # Connection without SSL/TLS
-            Connection(ssock, self.verbose)
-        else: # Connection with SSL/TLS
-            Connection_SSL(ssock, self.certfile, self.verbose)
+        Connection(ssock, self.verbose)
 
 class Connection:
 
@@ -335,24 +338,3 @@ class Connection:
         """ Close connection with the client """
         if self.conn_client:
             self.conn_client.close()
-    
-
-class Connection_SSL(Connection):
-    r""" Connection class over SSL/TLS connection
-
-    Instantiate with: Connection_SSL([ssock[, certfile[, verbose]]])
-    
-        ssock - Socket with the client;
-        certfile - PEM formatted certificate chain file;
-        verbose - Display the IMAP payload (default: False)
-
-    for more documentation see the docstring of the parent class Connection.
-    """
-
-    def __init__(self, ssock, certfile, verbose = False):
-        try:
-            self.conn_client = ssl.wrap_socket(ssock, certfile=certfile, server_side=True)
-        except ssl.SSLError as e:
-            raise
-
-        Connection.__init__(self, self.conn_client, verbose)
