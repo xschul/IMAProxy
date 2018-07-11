@@ -1,3 +1,3 @@
 #!/bin/sh
 
-python3 proxy/proxy.py -p 8002
+python3 proxy/proxy.py -p "$PROXY_PORT"

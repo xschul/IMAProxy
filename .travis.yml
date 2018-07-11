@@ -22,7 +22,7 @@ install:
 
 script:
   - sh .travis/run_proxy.sh &
-  - python3 tests/test_proxy.py "$IMAP_USERNAME" "$IMAP_PASSWORD" 0.0.0.0 -p "$PROXY_PORT"
+  - python3 tests/test_proxy.py "$IMAP_USERNAME" "$IMAP_PASSWORD" localhost -p "$PROXY_PORT"
 
 notifications:
   email:
