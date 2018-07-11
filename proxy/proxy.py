@@ -382,5 +382,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Start proxy
+    print("Starting proxy")
     IMAP_Proxy(port=args.port, certfile=args.certfile, max_client=args.nclient, verbose=args.verbose, ipv6=args.ipv6)
-    print("proxy stopped")

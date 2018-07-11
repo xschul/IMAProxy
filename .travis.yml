@@ -21,7 +21,7 @@ install:
   - sh .travis/run_imap_server.sh
 
 script:
-  - sh .travis/run_proxy.sh &
+  - python3 proxy/proxy.py -p "$PROXY_PORT" &
   - python3 tests/test_proxy.py "$IMAP_USERNAME" "$IMAP_PASSWORD" localhost -p "$PROXY_PORT"
 
 notifications:
