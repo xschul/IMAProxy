@@ -11,20 +11,18 @@ addons:
 
 env:
   global:
-    - IMAP_SERVER=dovecot.travis.dev
-    - IMAP_USERNAME=user@dovecot.com
-    - IMAP_PASSWORD=pwd
+    - SERVER=dovecot.travis.dev
+    - USERNAME=user@dovecot.com
+    - PASSWORD=pwd
     - PROXY_PORT=8002
 
 install:
   - pip3 install -r requirements.txt
   - sh .travis/run_imap_server.sh
 
-before_script:
-  - setsid .travis/run_proxy.sh >/dev/null 2>&1 < /dev/null &
-
 script:
-  - python3 tests/test_proxy.py "$IMAP_USERNAME" "$IMAP_PASSWORD" 0.0.0.0 -p "$PROXY_PORT"
+  - sh .travis/run_proxy.sh &
+  - python3 tests/test_proxy.py "$USERNAME" "$PASSWORD" 0.0.0.0 -p "$PROXY_PORT"
 
 notifications:
   email:
