@@ -33,7 +33,7 @@ def run_tests(conn_proxy, username, password):
     failed_tests = []
 
     def run(cmd, args):
-        print("["+cmd+"]: ")
+        print("["+cmd+"]")
         typ, dat = getattr(conn_proxy, cmd)(*args)
         print(typ)
         
