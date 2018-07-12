@@ -120,7 +120,7 @@ class Connection:
 
     Instantiate with: Connection([ssock[, verbose]])
 
-            socket - Connection (with or without SSL/TLS) with the client
+            socket - Socket (with or without SSL/TLS) with the client
             verbose - Display the IMAP payload (default: False)
     
     Listens on the socket commands from the client.
@@ -233,7 +233,7 @@ class Connection:
 
         self.send_to_client(self.success())
 
-    #       Supported IMAP commands
+    #       Mandatory supported IMAP commands
 
     def capability(self):
         """ Send capabilites of the proxy """
@@ -274,13 +274,11 @@ class Connection:
 
     def fetch(self):
         """ Fetch an email """
-        print('in fetch')
         pycircleanmail_module(self)
         self.transmit()
 
     def move(self):
         """ Move an email to another mailbox """
-        print('in move')
         misp_module(self)
         self.transmit()
 
@@ -340,14 +338,14 @@ class Connection:
 
         return str_response
 
-    #       Utils
+    #       Helpers
 
     def set_current_folder(self, folder):
         """ Set the current folder of the client """
         self.current_folder = self.remove_quotation_marks(folder)
 
     def remove_quotation_marks(self, text):
-        """ Remove quotation marks of a String """
+        """ Remove quotation marks from a String """
         if text.startswith('"') and text.endswith('"'):
             text = text[1:-1]
         return text
