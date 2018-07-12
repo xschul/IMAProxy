@@ -1,7 +1,0 @@
-twiggy
-olefile
-python-dateutil
-python-magic
-git+https://github.com/Rafiot/officedissector.git
-git+https://github.com/Rafiot/pdfid.git
-git+https://github.com/CIRCL/PyCIRCLeanMail.git
