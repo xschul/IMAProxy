@@ -1,6 +1,7 @@
 import sys, socket, ssl, re, base64, threading, argparse, imaplib
 
-from modules import pycircleanmail, misp
+from .pycircleanmail import process as pycircleanmail_module
+from .misp import process as misp_module
 
 # Default maximum number of client supported by the proxy
 MAX_CLIENT = 5  
@@ -274,13 +275,13 @@ class Connection:
     def fetch(self):
         """ Fetch an email """
         print('in fetch')
-        pycircleanmail.process(self)
+        pycircleanmail_module(self)
         self.transmit()
 
     def move(self):
         """ Move an email to another mailbox """
         print('in move')
-        misp.process(self)
+        misp_module(self)
         self.transmit()
 
     #       Command completion
