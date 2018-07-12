@@ -19,6 +19,7 @@ env:
 install:
   - sh .travis/run_imap_server.sh
   - python3 setup.py install
+  - pip3 install -r requirements.txt
 
 script:
   - start.py -p "$PROXY_PORT" &
