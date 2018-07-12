@@ -1,6 +1,6 @@
 import argparse
 
-from imaptproxy.proxy import IMAP_Proxy
+from imap-proxy.proxy import IMAP_Proxy
 
 if __name__ == '__main__':
     # Parser
