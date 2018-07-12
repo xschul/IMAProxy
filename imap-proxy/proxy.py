@@ -1,5 +1,7 @@
 import sys, socket, ssl, re, base64, threading, argparse, imaplib
 
+from modules import pycircleanmail, misp
+
 # Default maximum number of client supported by the proxy
 MAX_CLIENT = 5  
 # Default ports
@@ -38,6 +40,17 @@ HOSTS = {
     'gmail': 'imap.gmail.com',
     'dovecot': 'dovecot.travis.dev' # for Travis-CI
 }
+
+# Intercepted commands
+COMMANDS = (
+    'authenticate',
+    'capability',
+    'login',
+    'logout',
+    'select',
+    'move',
+    'fetch'
+)
 
 class IMAP_Proxy:
     
@@ -150,21 +163,15 @@ class Connection:
                 self.client_flags = match.group('flags')
                 self.request = request
 
-                self.intercept()
-
-    def intercept(self):
-        """ Intercept commands that are implemented """
-
-        command = getattr(self, self.client_command, None)
-        if callable(command):
-            # Command supported (defined) by the proxy
-            command()
-        else:
-            # Command unsupported -> directly transmit the command to the server
-            self.transmit()
+                if self.client_command in COMMANDS:
+                    # Command supported by the proxy
+                    getattr(self, self.client_command)()
+                else:
+                    # Command unsupported -> directly transmit to the server
+                    self.transmit()
 
     def transmit(self):
-        """ Replace client tag by the server tag, transmit it to the server and listen to the server"""
+        """ Replace client tag by the server tag, transmit it to the server and listen to the server """
         server_tag = self.conn_server._new_tag().decode()
         self.send_to_server(self.request.replace(self.client_tag, server_tag, 1))
         self.listen_server(server_tag)
@@ -260,6 +267,20 @@ class Connection:
     def select(self):
         """ Select a mailbox """
         self.set_current_folder(self.client_flags)
+        self.transmit()
+
+    #       CIRCL modules
+
+    def fetch(self):
+        """ Fetch an email """
+        print('in fetch')
+        pycircleanmail.process(self)
+        self.transmit()
+
+    def move(self):
+        """ Move an email to another mailbox """
+        print('in move')
+        misp.process(self)
         self.transmit()
 
     #       Command completion

@@ -25,6 +25,7 @@ script:
   - pid=$!
   - sleep 5
   - test_proxy.py "$IMAP_USERNAME" "$IMAP_PASSWORD" localhost -p "$PROXY_PORT"
+  - test_pycircleanmail.py "$IMAP_USERNAME" "$IMAP_PASSWORD" localhost -p "$PROXY_PORT"
   - kill -s INT $pid
 
 notifications:
